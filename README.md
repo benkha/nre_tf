@@ -1,1 +1,1 @@
-# nre_tf
+# Neural Relation Extraction in Tensor Flow
