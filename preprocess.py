@@ -2,6 +2,16 @@ import numpy as np
 import binascii
 import struct
 
+bags_train = {}
+head_list = []
+tail_list = []
+relation_num_list = []
+train_length = []
+limit = 30
+train_list = []
+train_position_e1 = []
+train_position_e2 = []
+
 def read_word(f):
     word = b''
     not_space = True
@@ -55,5 +65,62 @@ def read_relation():
     print("Relation total: ", len(relation_list))
     return relation_map, relation_list
 
-# word_matrix, word_mapping, word_list = read_vec()
-# relation_map, relation_list = read_relation()
+def read_train(word_map, relation_map):
+    PositionMinE1 = 0
+    PositionMaxE1 = 0
+    PositionMinE2 = 0
+    PositionMaxE2 = 0
+    with open('data/RE/train.txt') as f:
+        for line in f:
+            words = line.split()
+            head_s = words[2]
+            head = word_map.get(head_s, 0)
+            tail_s = words[3]
+            tail = word_map.get(tail_s, 0)
+            relation = words[4]
+            bags_train_list = bags_train.get(head_s + '\t' + tail_s + 's' + relation)
+            if not bags_train_list:
+                bags_train_list = []
+            bags_train[head_s + '\t' + tail_s + 's' + relation] = bags_train_list.append(len(head_list))
+            num = relation_map.get(relation, 0)
+            tmpp = []
+            n = 0
+            left_num = 0
+            rightnum = 0
+            for i in range(5, len(words)):
+                temp_word = words[i]
+                if (temp_word == '###END###'):
+                    break
+                word_id = word_map.get(temp_word, 0)
+                if (temp_word == head_s):
+                    left_num = n
+                if (temp_word == tail_s):
+                    right_num = n
+                n += 1
+                tmpp.append(word_id)
+            head_list.append(head)
+            tail_list.append(tail)
+            relation_num_list.append(num)
+            train_length.append(n)
+            con = [0] * n
+            conl = [0] * n
+            conr = [0] * n
+            for i in range(n):
+                con[i] = tmpp[i]
+                conl[i] = left_num - i
+                conr[i] = right_num - i
+                if (conl[i] >= limit): conl[i] = limit
+                if (conr[i] >= limit): conr[i] = limit
+                if (conl[i] <= -limit): conl[i] = -limit
+                if (conr[i] <= -limit): conr[i] = -limit
+                if (conl[i] > PositionMaxE1): PositionMaxE1 = conl[i]
+                if (conr[i] > PositionMaxE2): PositionMaxE2 = conr[i]
+                if (conl[i] < PositionMinE1): PositionMinE1 = conl[i]
+                if (conr[i] < PositionMinE2): PositionMinE2 = conr[i]
+            train_list.append(con)
+            train_position_e1.append(conl)
+            train_position_e2.append(conr)
+
+word_matrix, word_map, word_list = read_vec()
+relation_map, relation_list = read_relation()
+read_train(word_map, relation_map)
