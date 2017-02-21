@@ -42,4 +42,18 @@ def read_vec():
 
         return word_matrix, word_mapping, word_list
 
-word_matrix, word_mapping, word_list = read_vec()
+def read_relation():
+    relation_map = {}
+    relation_list = []
+    with open('data/RE/relation2id.txt', 'r') as f:
+        for line in f:
+            relation_line = line.split()
+            relation = relation_line[0]
+            id = int(relation_line[1])
+            relation_map[relation] = id
+            relation_list.append(relation)
+    print("Relation total: ", len(relation_list))
+    return relation_map, relation_list
+
+# word_matrix, word_mapping, word_list = read_vec()
+# relation_map, relation_list = read_relation()
