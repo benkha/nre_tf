@@ -58,8 +58,8 @@ def read_relation():
         for line in f:
             relation_line = line.split()
             relation = relation_line[0]
-            id = int(relation_line[1])
-            relation_map[relation] = id
+            relation_id = int(relation_line[1])
+            relation_map[relation] = relation_id
             relation_list.append(relation)
     print("Relation total: ", len(relation_list))
     return relation_map, relation_list
