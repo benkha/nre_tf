@@ -1,5 +1,4 @@
 import numpy as np
-import binascii
 import struct
 
 bags_train = {}
@@ -66,10 +65,7 @@ def read_relation():
     return relation_map, relation_list
 
 def read_train(word_map, relation_map):
-    PositionMinE1 = 0
-    PositionMaxE1 = 0
-    PositionMinE2 = 0
-    PositionMaxE2 = 0
+    PositionMinE1 = PositionMaxE1 = PositionMinE2 = PositionMaxE2 = 0
     with open('data/RE/train.txt') as f:
         for line in f:
             words = line.split()
@@ -78,10 +74,7 @@ def read_train(word_map, relation_map):
             tail_s = words[3]
             tail = word_map.get(tail_s, 0)
             relation = words[4]
-            bags_train_list = bags_train.get(head_s + '\t' + tail_s + 's' + relation)
-            if not bags_train_list:
-                bags_train_list = []
-            bags_train[head_s + '\t' + tail_s + 's' + relation] = bags_train_list.append(len(head_list))
+            bags_train.setdefault(head_s + '\t' + tail_s + 's' + relation, []).append(len(head_list))
             num = relation_map.get(relation, 0)
             tmpp = []
             n = 0
@@ -107,19 +100,22 @@ def read_train(word_map, relation_map):
             conr = [0] * n
             for i in range(n):
                 con[i] = tmpp[i]
-                conl[i] = left_num - i
-                conr[i] = right_num - i
-                if (conl[i] >= limit): conl[i] = limit
-                if (conr[i] >= limit): conr[i] = limit
-                if (conl[i] <= -limit): conl[i] = -limit
-                if (conr[i] <= -limit): conr[i] = -limit
-                if (conl[i] > PositionMaxE1): PositionMaxE1 = conl[i]
-                if (conr[i] > PositionMaxE2): PositionMaxE2 = conr[i]
-                if (conl[i] < PositionMinE1): PositionMinE1 = conl[i]
-                if (conr[i] < PositionMinE2): PositionMinE2 = conr[i]
+                set_with_limit(conl, i, left_num - i, limit)
+                set_with_limit(conr, i, right_num - i, limit)
+                PositionMaxE1 = max(PositionMaxE1, conl[i])
+                PositionMaxE2 = max(PositionMaxE2, conr[i])
+                PositionMinE1 = min(PositionMinE1, conl[i])
+                PositionMinE2 = min(PositionMinE2, conr[i])
             train_list.append(con)
             train_position_e1.append(conl)
             train_position_e2.append(conr)
+
+def set_with_limit(lst, i, value, limit):
+    if value >= limit:
+        value = limit
+    elif value <= -limit:
+        value = -limit
+    lst[i] = value
 
 word_matrix, word_map, word_list = read_vec()
 relation_map, relation_list = read_relation()
