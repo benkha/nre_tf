@@ -130,7 +130,7 @@ def set_with_limit(lst, i, value, limit):
     lst[i] = value
 
 
-
-word_matrix, word_map, word_list = read_vec()
-relation_map, relation_list = read_relation()
-position_total_e1, position_total_e2 = read_train(word_map, relation_map)
+def load_data():
+    word_matrix, word_map, word_list = read_vec()
+    relation_map, relation_list = read_relation()
+    position_total_e1, position_total_e2 = read_train(word_map, relation_map)
