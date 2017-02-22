@@ -134,3 +134,21 @@ def load_data():
     word_matrix, word_map, word_list = read_vec()
     relation_map, relation_list = read_relation()
     position_total_e1, position_total_e2 = read_train(word_map, relation_map)
+    data = {
+        "word_matrix" : word_matrix,
+        "word_map": word_map,
+        "word_list": word_list,
+        "relation_map": relation_map,
+        "relation_list": relation_list,
+        "bags_train": bags_train,
+        "head_list": head_list,
+        "tail_list": tail_list,
+        "relation_num_list": relation_num_list,
+        "train_length": train_length,
+        "train_list": train_list,
+        "train_position_e1": train_position_e1,
+        "train_position_e2": train_position_e2,
+        "position_total_e1": position_total_e1,
+        "position_total_e2": position_total_e2
+    }
+    return data
