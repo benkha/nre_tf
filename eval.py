@@ -17,7 +17,8 @@ class NeuralRelationExtractor():
 
         self.word_map = self.data["word_map"]
         self.word_matrix = self.data["word_matrix"]
-        self.sentences = self.make_vectors(self.data["train_list"], self.data["train_position_e1"], self.data["train_position_e2"])
+        self.sentences = self.make_vectors(self.data["train_list"], self.data["train_position_e1"],
+                                           self.data["train_position_e2"])
         self.bags_train = self.data["bags_train"]
 
 
