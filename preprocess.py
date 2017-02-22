@@ -65,7 +65,7 @@ def read_relation():
     return relation_map, relation_list
 
 def read_train(word_map, relation_map):
-    PositionMinE1 = PositionMaxE1 = PositionMinE2 = PositionMaxE2 = 0
+    position_min_e1 = position_max_e1 = position_min_e2 = position_max_e2 = 0
     with open('data/RE/train.txt') as f:
         for line in f:
             words = line.split()
@@ -102,13 +102,25 @@ def read_train(word_map, relation_map):
                 con[i] = tmpp[i]
                 set_with_limit(conl, i, left_num - i, limit)
                 set_with_limit(conr, i, right_num - i, limit)
-                PositionMaxE1 = max(PositionMaxE1, conl[i])
-                PositionMaxE2 = max(PositionMaxE2, conr[i])
-                PositionMinE1 = min(PositionMinE1, conl[i])
-                PositionMinE2 = min(PositionMinE2, conr[i])
+                position_max_e1 = max(position_max_e1, conl[i])
+                position_max_e2 = max(position_max_e2, conr[i])
+                position_min_e1 = min(position_min_e1, conl[i])
+                position_min_e2 = min(position_min_e2, conr[i])
             train_list.append(con)
             train_position_e1.append(conl)
             train_position_e2.append(conr)
+
+    for i in range(len(train_position_e1)):
+        train_len = train_length[i]
+        work_1 = train_position_e1[i]
+        work_2 = train_position_e2[i]
+
+        for j in range(train_len):
+            work_1[j] -= position_min_e1
+            work_2[j] -= position_min_e2
+    position_total_e1 = position_max_e1 - position_min_e1 + 1
+    position_total_e2 = position_max_e2 - position_min_e2 + 1
+    return position_total_e1, position_total_e2
 
 def set_with_limit(lst, i, value, limit):
     if value >= limit:
@@ -117,6 +129,8 @@ def set_with_limit(lst, i, value, limit):
         value = -limit
     lst[i] = value
 
+
+
 word_matrix, word_map, word_list = read_vec()
 relation_map, relation_list = read_relation()
-read_train(word_map, relation_map)
+position_total_e1, position_total_e2 = read_train(word_map, relation_map)
