@@ -3,7 +3,7 @@ import tensorflow as tf
 import numpy as np
 
 
-class SentenceEncoder():
+class NeuralRelationExtractor():
 
     def __init__(self):
         self.stddev = 0.02
@@ -18,6 +18,7 @@ class SentenceEncoder():
         self.word_map = self.data["word_map"]
         self.word_matrix = self.data["word_matrix"]
         self.sentences = self.make_vectors(self.data["train_list"], self.data["train_position_e1"], self.data["train_position_e2"])
+        self.bags_train = self.data["bags_train"]
 
 
     def make_vectors(self, train_list, train_position_e1, train_position_e2):
@@ -37,14 +38,21 @@ class SentenceEncoder():
             sentences.append(word_list)
         return sentences
 
-    def train(self):
+    def train_sentence(self):
         sentence = tf.placeholder(tf.float32, [1, None, self.d, 1])
-        self.encoder(sentence)
+        sentence_vector = self.encoder(sentence)
+        return sentence_vector
+
+    def train_bag(self, bag):
+        return None
+
+    def train(self):
+        return None
 
     def encoder(self, x_in):
         with tf.variable_scope('encoder'):
             p_1 = self.conv_2d(x_in, self.l, self.d, self.d_c, "p_1")
-            max_pool = tf.nn.max_pool(p_1, ksize=[1, None, self.d_c, 1],
+            max_pool = tf.nn.max_pool(p_1, ksize=[1, None, 1, 1],
                                       strides=[1, 1, 1, 1],
                                       padding="SAME")
             max_pool_flat = tf.reshape(max_pool, [self.d_c])
@@ -60,10 +68,11 @@ class SentenceEncoder():
                                      initializer=tf.constant_initializer(0.0))
             return tf.nn.conv2d(x_in, weights, strides=[1, 1, 1, 1], padding="SAME") + biases
 
+    def sentence_attention():
+        return None
 
 
 
 
 
-
-model = SentenceEncoder()
+model = NeuralRelationExtractor()
