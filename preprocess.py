@@ -67,7 +67,11 @@ def read_relation():
 def read_train(word_map, relation_map):
     position_min_e1 = position_max_e1 = position_min_e2 = position_max_e2 = 0
     with open('data/RE/train.txt') as f:
+        count = 0
         for line in f:
+            if count > 1000:
+                break
+            count += 1
             words = line.split()
             head_s = words[2]
             head = word_map.get(head_s, 0)
@@ -110,14 +114,6 @@ def read_train(word_map, relation_map):
             train_position_e1.append(conl)
             train_position_e2.append(conr)
 
-    for i in range(len(train_position_e1)):
-        train_len = train_length[i]
-        work_1 = train_position_e1[i]
-        work_2 = train_position_e2[i]
-
-        for j in range(train_len):
-            work_1[j] -= position_min_e1
-            work_2[j] -= position_min_e2
     position_total_e1 = position_max_e1 - position_min_e1 + 1
     position_total_e2 = position_max_e2 - position_min_e2 + 1
     return position_total_e1, position_total_e2
