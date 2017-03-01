@@ -23,6 +23,16 @@ class NeuralRelationExtractor():
         self.max_length = self.data["max_length"]
         self.num_positions = 2 * self.data["limit"] + 1
 
+        self.sentences = tf.placeholder(tf.float32, [None, self.max_length, 3, 1])
+        self.sentence_vectors = self.train_sentence()
+
+        self.logits = self.avg_sentences(self.sentence_vectors)
+
+        self.cost =tf.nn.sigmoid_cross_entropy_with_logits(self.logits, self.labels)
+
+        self.optimizer = tf.train.AdamOptimizer(0.01).minimize(self.cost)
+
+
     def make_vectors(self, train_list, train_position_e1, train_position_e2):
         sentences = []
         for i in range(len(train_list)):
@@ -40,15 +50,14 @@ class NeuralRelationExtractor():
             sentences.append(word_list)
         return sentences
 
-    def train_sentence(self):
-        sentence = tf.placeholder(tf.float32, [None, self.max_length, 3, 1])
+    def train_sentence(self, sentences):
         word_embedding = tf.constant(self.word_matrix)
         pad_embedding = tf.get_variable("pad_embedding", [1, self.d], initializer=tf.truncated_normal_initializer(stddev=self.stddev))
         combined_embedding = tf.concat([word_embedding, pad_embedding], 0)
-        sentence_embedding = tf.nn.embedding_lookup(combined_embedding, tf.slice(sentence, [0, 0, 0, 0], [1, -1, 1, 1]))
+        sentence_embedding = tf.nn.embedding_lookup(combined_embedding, tf.slice(sentences, [0, 0, 0, 0], [1, -1, 1, 1]))
 
         position_embedding = tf.get_variable("position_embedding", [self.num_positions, self.d_b])
-        position = tf.nn.embedding_lookup(position_embedding, tf.slice(sentence, [0,0, 1, 0], [1, -1, 2, 1]))
+        position = tf.nn.embedding_lookup(position_embedding, tf.slice(sentences, [0,0, 1, 0], [1, -1, 2, 1]))
 
         sentence_vector = tf.concat([sentence_embedding, position], 1)
 
@@ -56,11 +65,26 @@ class NeuralRelationExtractor():
         sentence_vector = self.encoder(sentence_vector)
         return sentence_vector
 
-    def train_bag(self, bag):
-        return None
+    def avg_sentences(self, x_in):
+        s = tf.reduce_mean(x_in)
+        output_vector = self.fully_connected(s, self.d_c, self.n_r, "sentence_output")
+        return output_vector
+
+    def fully_connected(self, x_in, input_shape, output_shape, scope):
+        with tf.variable_scope(scope):
+            matrix = tf.get_variable("matrix", [input_shape, output_shape],
+                                     tf.float32,
+                                     initializer=tf.random_normal_initializer(stddev=self.stddev))
+            bias = tf.get_variable("bias", [output_shape],
+                                   initializer=tf.constant_initializer(0.0))
+            return tf.matmul(x_in, matrix) + bias
 
     def train(self):
-        return None
+        with tf.Session() as sess:
+            sess.run(tf.global_variables_initializer())
+            for epoch in range(10):
+                batch = self.get_batch(i)
+                entropy_loss = sess.run((self.optimizer, self.cost))
 
     def encoder(self, x_in):
         with tf.variable_scope('encoder'):
