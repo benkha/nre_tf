@@ -21,6 +21,7 @@ class NeuralRelationExtractor():
         self.sentences = self.make_vectors(self.data["train_list"], self.data["train_position_e1"],
                                            self.data["train_position_e2"])
         self.bags_train = self.data["bags_train"]
+        self.find_longest_bag(self.bags_train)
         self.max_length = self.data["max_length"]
         self.num_positions = 2 * self.data["limit"] + 1
 
@@ -32,6 +33,13 @@ class NeuralRelationExtractor():
         self.cost =tf.nn.sigmoid_cross_entropy_with_logits(self.logits, self.labels)
 
         self.optimizer = tf.train.AdamOptimizer(0.01).minimize(self.cost)
+
+    def find_longest_bag(bags_train):
+        count = 0
+        for bag in bags_train:
+            count = max(count, len(bag))
+
+        print(count)
 
 
     def make_vectors(self, train_list, train_position_e1, train_position_e2):
