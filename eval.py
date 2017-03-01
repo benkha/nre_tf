@@ -27,7 +27,7 @@ class NeuralRelationExtractor():
         self.sentences = tf.placeholder(tf.float32, [None, self.max_length, 3, 1])
         self.sentence_vectors = self.train_sentence(self.sentences)
 
-        self.logits = self.avg_sentences(self.sentence_vectors)
+        self.logits = self.avg_bag(self.sentence_vectors)
 
         self.cost =tf.nn.sigmoid_cross_entropy_with_logits(self.logits, self.labels)
 
@@ -69,26 +69,20 @@ class NeuralRelationExtractor():
 
         return sentence_vector
 
-    def avg_sentences(self, x_in):
+    def avg_bag(self, x_in):
         x_flat = tf.reshape(x_in, [-1, self.d_c])
-        print(x_flat)
-        #Need to reduce mean for each bag
-        s = tf.reduce_mean(x_in, 0)
-        print(s)
-        output_vector = self.fully_connected(s, self.d_c, self.n_r, "sentence_output")
-        return output_vector
+
+        s = tf.reduce_mean(x_flat, 0)
+        s = tf.reshape([1, self.d_c])
+        return s
 
     def fully_connected(self, x_in, input_shape, output_shape, scope):
         with tf.variable_scope(scope):
             matrix = tf.get_variable("matrix", [input_shape, output_shape],
                                      tf.float32,
                                      initializer=tf.random_normal_initializer(stddev=self.stddev))
-            print("matrix")
-            print(matrix)
-            bias = tf.get_variable("bias", [output_shape],
+            bias = tf.get_variable("bias", [1, output_shape],
                                    initializer=tf.constant_initializer(0.0))
-            print("bias")
-            print(bias)
             return tf.matmul(x_in, matrix) + bias
 
     def train(self):
@@ -101,7 +95,6 @@ class NeuralRelationExtractor():
     def encoder(self, x_in):
         with tf.variable_scope('encoder'):
             p_1 = self.conv_2d(x_in, self.l, self.d, self.d_c, "p_1")
-            print(p_1)
             max_pool = tf.nn.max_pool(p_1, ksize=[1, p_1.shape[1], 1, 1],
                                       strides=[1, 1, 1, 1],
                                       padding="VALID")
