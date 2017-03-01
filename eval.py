@@ -52,28 +52,18 @@ class NeuralRelationExtractor():
 
     def train_sentence(self, sentences):
         word_embedding = tf.constant(self.word_matrix, dtype="float32")
-        print(word_embedding)
         pad_embedding = tf.get_variable("pad_embedding", [1, self.d_a], dtype="float32", initializer=tf.truncated_normal_initializer(stddev=self.stddev))
-        print(pad_embedding)
         combined_embedding = tf.concat([word_embedding, pad_embedding], 0)
-        print(combined_embedding)
 
         sentences = tf.to_int64(sentences)
-        print(sentences)
         sentence_embedding = tf.nn.embedding_lookup(combined_embedding, tf.slice(sentences, [0, 0, 0, 0], [-1, -1, 1, -1]))
-        print(sentence_embedding)
-
 
         position_embedding = tf.get_variable("position_embedding", [self.num_positions, self.d_b])
-        print(position_embedding)
         position_1 = tf.nn.embedding_lookup(position_embedding, tf.slice(sentences, [0,0, 1, 0], [-1, -1, 1, -1]))
         position_2 = tf.nn.embedding_lookup(position_embedding, tf.slice(sentences, [0,0, 2, 0], [-1, -1, 1, -1]))
 
         sentence_vector = tf.concat([sentence_embedding, position_1, position_2], 4)
-
         sentence_vector = tf.reshape(sentence_vector, [-1, 134, self.d, 1])
-
-        print(sentence_vector)
         sentence_vector = self.encoder(sentence_vector)
 
         return sentence_vector
@@ -102,23 +92,22 @@ class NeuralRelationExtractor():
     def encoder(self, x_in):
         with tf.variable_scope('encoder'):
             p_1 = self.conv_2d(x_in, self.l, self.d, self.d_c, "p_1")
-            print(p_1)
             max_pool = tf.nn.max_pool(p_1, ksize=[1, x_in.shape[1], 1, 1],
                                       strides=[1, 1, 1, 1],
-                                      padding="SAME")
-            print(max_pool)
+                                      padding="VALID")
             max_pool_flat = tf.reshape(max_pool, [self.d_c])
             return tf.nn.tanh(max_pool_flat)
 
-    def conv_2d(self, x_in, filter_height, filter_width, out_channels, scope):
+    def conv_2d(self, x_in, filter_height, filter_width, out_shape, scope):
         with tf.variable_scope(scope):
             weights = tf.get_variable("weights",
-                                      [filter_height, filter_width, 1, out_channels],
+                                      [filter_height, filter_width, 1, out_shape],
                                       initializer=
                                       tf.truncated_normal_initializer(stddev=self.stddev))
-            biases = tf.get_variable("biases", [out_channels],
+            biases = tf.get_variable("biases", [out_shape],
                                      initializer=tf.constant_initializer(0.0))
-            return tf.nn.conv2d(x_in, weights, strides=[1, 1, 1, 1], padding="SAME") + biases
+            conv = tf.nn.conv2d(x_in, weights, strides=[1, 1, 1, 1], padding="SAME")
+            return tf.nn.bias_add(conv, biases)
 
     def sentence_attention():
         return None
