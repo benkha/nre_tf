@@ -34,7 +34,7 @@ class NeuralRelationExtractor():
 
         self.optimizer = tf.train.AdamOptimizer(0.01).minimize(self.cost)
 
-    def find_longest_bag(bags_train):
+    def find_longest_bag(self, bags_train):
         count = 0
         for bag in bags_train:
             count = max(count, len(bags_train[bag]))
