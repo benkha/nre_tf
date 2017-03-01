@@ -71,8 +71,8 @@ def read_train(word_map, relation_map):
     with open('data/RE/train.txt') as f:
         count = 0
         for line in f:
-            if count > 3000:
-                break
+            # if count > 3000:
+            #     break
             count += 1
             words = line.split()
             head_s = words[2]

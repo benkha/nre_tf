@@ -36,6 +36,7 @@ class NeuralRelationExtractor():
 
     def find_longest_bag(self, bags_train):
         count = 0
+        print(len(bags_train))
         for bag in bags_train:
             count = max(count, len(bags_train[bag]))
 
