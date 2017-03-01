@@ -66,6 +66,8 @@ def read_relation():
 
 def read_train(word_map, relation_map):
     position_min_e1 = position_max_e1 = position_min_e2 = position_max_e2 = 0
+    left_num_list = []
+    right_num_list = []
     with open('data/RE/train.txt') as f:
         count = 0
         for line in f:
@@ -95,6 +97,8 @@ def read_train(word_map, relation_map):
                     right_num = n
                 n += 1
                 tmpp.append(word_id)
+            left_num_list.append(left_num)
+            right_num_list.append(right_num)
             head_list.append(head)
             tail_list.append(tail)
             relation_num_list.append(num)
@@ -116,20 +120,38 @@ def read_train(word_map, relation_map):
 
     position_total_e1 = position_max_e1 - position_min_e1 + 1
     position_total_e2 = position_max_e2 - position_min_e2 + 1
-    return position_total_e1, position_total_e2
+    return position_total_e1, position_total_e2, left_num_list, right_num_list
 
-def set_with_limit(lst, i, value, limit):
+def set_with_limit(lst, i, value, limit, append=False):
     if value >= limit:
         value = limit
     elif value <= -limit:
         value = -limit
-    lst[i] = value
+    if append:
+        lst.append(value)
+    else:
+        lst[i] = value
+
+def pad_sentences(train_list, max_length, train_position_e1, train_position_e2, left_num_list, right_num_list, word_matrix):
+    for i in range(len(train_list)):
+        sentence = train_list[i]
+        conl = train_position_e1[i]
+        conr = train_position_e2[i]
+        left_num = left_num_list[i]
+        right_num = right_num_list[i]
+        if len(sentence) < max_length:
+            for j in range(len(sentence), max_length):
+                sentence.append(len(word_matrix))
+                set_with_limit(conl, j, left_num - j, limit, append=True)
+                set_with_limit(conr, j, right_num - j, limit, append=True)
 
 
 def load_data():
     word_matrix, word_map, word_list = read_vec()
     relation_map, relation_list = read_relation()
-    position_total_e1, position_total_e2 = read_train(word_map, relation_map)
+    position_total_e1, position_total_e2, left_num_list, right_num_list = read_train(word_map, relation_map)
+    max_length = max(train_length)
+    pad_sentences(train_list, max_length, train_position_e1, train_position_e2, left_num_list, right_num_list, word_matrix)
     data = {
         "word_matrix" : word_matrix,
         "word_map": word_map,
@@ -145,6 +167,8 @@ def load_data():
         "train_position_e1": train_position_e1,
         "train_position_e2": train_position_e2,
         "position_total_e1": position_total_e1,
-        "position_total_e2": position_total_e2
+        "position_total_e2": position_total_e2,
+        "max_length": max_length,
+        "limit": limit
     }
     return data

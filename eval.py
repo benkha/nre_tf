@@ -10,7 +10,7 @@ class NeuralRelationExtractor():
 
         self.data = load_data()
         self.d_a = 50
-        self.d_b = 1
+        self.d_b = 5
         self.d_c = 230
         self.d = self.d_a + self.d_b * 2
         self.l = 3
@@ -20,7 +20,8 @@ class NeuralRelationExtractor():
         self.sentences = self.make_vectors(self.data["train_list"], self.data["train_position_e1"],
                                            self.data["train_position_e2"])
         self.bags_train = self.data["bags_train"]
-
+        self.max_length = self.data["max_length"]
+        self.num_positions = 2 * self.data["limit"] + 1
 
     def make_vectors(self, train_list, train_position_e1, train_position_e2):
         sentences = []
@@ -33,15 +34,26 @@ class NeuralRelationExtractor():
                 word_id = words[j]
                 position_e1 = conl[j]
                 position_e2 = conr[j]
-                word_embed = self.word_matrix[word_id]
+                word_embed = [word_id]
                 new_embed = np.append(word_embed, [position_e1, position_e2])
                 word_list.append(new_embed)
             sentences.append(word_list)
         return sentences
 
     def train_sentence(self):
-        sentence = tf.placeholder(tf.float32, [1, None, self.d, 1])
-        sentence_vector = self.encoder(sentence)
+        sentence = tf.placeholder(tf.float32, [None, self.max_length, 3, 1])
+        word_embedding = tf.constant(self.word_matrix)
+        pad_embedding = tf.get_variable("pad_embedding", [1, self.d], initializer=tf.truncated_normal_initializer(stddev=self.stddev))
+        combined_embedding = tf.concat([word_embedding, pad_embedding], 0)
+        sentence_embedding = tf.nn.embedding_lookup(combined_embedding, tf.slice(sentence, [0, 0, 0, 0], [1, -1, 1, 1]))
+
+        position_embedding = tf.get_variable("position_embedding", [self.num_positions, self.d_b])
+        position = tf.nn.embedding_lookup(position_embedding, tf.slice(sentence, [0,0, 1, 0], [1, -1, 2, 1]))
+
+        sentence_vector = tf.concat([sentence_embedding, position], 1)
+
+
+        sentence_vector = self.encoder(sentence_vector)
         return sentence_vector
 
     def train_bag(self, bag):
@@ -71,9 +83,5 @@ class NeuralRelationExtractor():
 
     def sentence_attention():
         return None
-
-
-
-
 
 model = NeuralRelationExtractor()
