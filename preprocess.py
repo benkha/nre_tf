@@ -99,21 +99,14 @@ def read_train(word_map, relation_map):
                 tmpp.append(word_id)
             left_num_list.append(left_num)
             right_num_list.append(right_num)
-            head_list.append(head)
-            tail_list.append(tail)
-            relation_num_list.append(num)
             train_length.append(n)
-            con = [0] * n
-            conl = [0] * n
-            conr = [0] * n
+            con = np.zeros(n, dtype="int32")
+            conl = np.zeros(n, dtype="int8")
+            conr = np.zeros(n, dtype="int8")
             for i in range(n):
                 con[i] = tmpp[i]
                 set_with_limit(conl, i, left_num - i, limit)
                 set_with_limit(conr, i, right_num - i, limit)
-                position_max_e1 = max(position_max_e1, conl[i])
-                position_max_e2 = max(position_max_e2, conr[i])
-                position_min_e1 = min(position_min_e1, conl[i])
-                position_min_e2 = min(position_min_e2, conr[i])
             train_list.append(con)
             train_position_e1.append(conl)
             train_position_e2.append(conr)
