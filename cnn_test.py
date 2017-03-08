@@ -20,7 +20,7 @@ class NeuralRelationExtractor():
 
         self.word_map = self.data["word_map"]
         self.word_matrix = self.data["word_matrix"]
-        self.train_list = self.data["train_list"]
+        self.train_list = self.data["test_list"]
         self.num_positions = 2 * self.data["limit"] + 1
         self.bags_list = self.data["bags_list"]
         print("Number of bags:", len(self.bags_list))
@@ -40,8 +40,6 @@ class NeuralRelationExtractor():
         self.labels_placeholder = tf.placeholder(tf.int32, [self.batch_size])
 
         self.cost = tf.reduce_sum(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.labels_placeholder, logits=self.logits))
-
-        self.optimizer = tf.train.AdamOptimizer(0.01).minimize(self.cost)
 
     def fully_connected(self, x_in, input_shape, output_shape, scope):
         with tf.variable_scope(scope):
@@ -91,15 +89,16 @@ class NeuralRelationExtractor():
 
         return sentence_vector
 
-    def train(self):
+    def test(self):
         save_path = './sample_model/'
-        self.batch_iter = next_batch(self.batch_size, self.bags_list, self.train_list)
+        self.batch_iter = next_batch(self.batch_size, self.bags_list, self.test_list)
         config = tf.ConfigProto()
         config.gpu_options.per_process_gpu_memory_fraction = 0.5
         with tf.Session(config=config) as sess:
             sess.run(tf.global_variables_initializer())
-            saver = tf.train.Saver(max_to_keep=None)
-            for step in range(self.num_epochs * len(self.bags_list) // self.batch_size):
+            saver = tf.train.Saver()
+            for step in range(0, self.num_epochs * len(self.bags_list) // self.batch_size, 1000):
+                saver.restore(sess,pathname+str(model_iter))
                 sentences, bag_labels, bag_indices = next(self.batch_iter)
                 _, loss = sess.run((self.optimizer, self.cost), feed_dict={self.sentences_placeholder: sentences, self.labels_placeholder: bag_labels, self.bag_indices: bag_indices})
                 if step % 50 == 0:
@@ -130,24 +129,8 @@ class NeuralRelationExtractor():
             conv = tf.nn.conv2d(x_in, weights, strides=[1, 1, 1, 1], padding="VALID")
             return tf.nn.bias_add(conv, biases)
 
-    def attention_bags(self, bag_indices, sentence_vectors):
-        prev = 0
-        means = []
-        for j in range(160):
-            i = bag_indices[j]
-            bag_tensors = tf.slice(sentence_vectors, [prev, 0], [i, -1])
-            mean_tensors = tf.reduce_mean(sum_tensors, 0)
-            means.append(mean_tensors)
-            prev += i
-        return tf.stack(means)
-
-    def sentence_attention(self, x_in):
-        A = tf.get_variable("A", [self.d_c],
-                            initializer=tf.truncated_normal_initializer(stddev=self.stddev))
-        r = tf.get_variable("r", [self.d_c, self.n_r],
-                            initializer=tf.truncated_normal_initializer(stddev=self.stddev))
-        A_matrix = tf.diag(A)
-        return tf.matmul(x_in, tf.matmul(A_matrix, r))
+    def sentence_attention():
+        return None
 
 model = NeuralRelationExtractor()
 print("=====Starting to train=====")
