@@ -27,12 +27,28 @@ class NeuralRelationExtractor():
         self.sentences = tf.expand_dims(self.sentences_placeholder,  -1)
         self.sentence_vectors = self.train_sentence(self.sentences)
 
-        self.logits = self.avg_bag(self.sentence_vectors)
+        self.flat_sentences = tf.squeeze(self.sentence_vectors, [1, 2])
+        self.bag_indices = tf.placeholder(tf.int32, [self.batch_size])
+        self.logits = self.avg_bags(self.bag_indices, self.flat_sentences)
+
+        # self.logits = self.avg_bag(self.sentence_vectors)
         self.labels_placeholder = tf.placeholder(tf.int32, [None])
 
-        self.cost = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.labels_placeholder, logits=self.logits)
+        self.cost = tf.reduce_sum(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.labels_placeholder, logits=self.logits))
 
         self.optimizer = tf.train.AdamOptimizer(0.01).minimize(self.cost)
+
+    def avg_bags(self, bag_indices, sentence_vectors):
+        prev = 0
+        means = []
+        for j in range(160):
+            i = bag_indices[j]
+            sum_tensors = tf.slice(sentence_vectors, [prev, 0], [i, -1])
+            mean_tensors = tf.reduce_mean(sum_tensors, 0)
+            means.append(mean_tensors)
+            prev += i
+        return tf.stack(means)
+
 
     def find_longest_bag(self, bags_train):
         count = 0
@@ -49,18 +65,13 @@ class NeuralRelationExtractor():
 
         sentences = tf.to_int64(sentences)
         sentence_embedding = tf.nn.embedding_lookup(combined_embedding, tf.slice(sentences, [0, 0, 0, 0], [-1, -1, 1, -1]))
-        print("sentence embedding:", sentence_embedding)
 
         position_embedding = tf.get_variable("position_embedding", [self.num_positions, self.d_b], initializer=tf.truncated_normal_initializer(stddev=self.stddev))
         position_1 = tf.nn.embedding_lookup(position_embedding, tf.slice(sentences, [0,0, 1, 0], [-1, -1, 1, -1]))
-        print("position 1:", position_1)
         position_2 = tf.nn.embedding_lookup(position_embedding, tf.slice(sentences, [0,0, 2, 0], [-1, -1, 1, -1]))
-        print("position 2:", position_2)
 
         sentence_vector = tf.concat([sentence_embedding, position_1, position_2], 4)
-        print('sentence_vector:')
-        print(sentence_vector)
-        sentence_vector = tf.squeeze(sentence_vector)
+        sentence_vector = tf.squeeze(sentence_vector, [2, 3])
         sentence_vector = tf.expand_dims(sentence_vector, -1)
         sentence_vector = self.encoder(sentence_vector)
 
@@ -87,14 +98,14 @@ class NeuralRelationExtractor():
         with tf.Session() as sess:
             sess.run(tf.global_variables_initializer())
             for epoch in range(10):
-                sentences, bag_labels = next(self.batch_iter)
-                entropy_loss = sess.run((self.optimizer, self.cost), feed_dict={self.sentences_placeholder: sentences, self.labels_placeholder: bag_labels})
+                sentences, bag_labels, bag_indices = next(self.batch_iter)
+                entropy_loss = sess.run((self.optimizer, self.cost), feed_dict={self.sentences_placeholder: sentences, self.labels_placeholder: bag_labels, self.bag_indices: bag_indices})
+                print("Epoch:", epoch)
+                print("Entropy Loss", entropy_loss)
 
     def encoder(self, x_in):
         with tf.variable_scope('encoder'):
             p_1 = self.conv_2d(x_in, self.l, self.d, self.d_c, "p_1")
-            print("p_1")
-            print(p_1)
             max_pool = tf.nn.max_pool(p_1, ksize=[1, p_1.shape[1], 1, 1],
                                       strides=[1, 1, 1, 1],
                                       padding="VALID")

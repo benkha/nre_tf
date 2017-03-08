@@ -2,7 +2,6 @@ import numpy as np
 import struct
 
 bags_train = {}
-bags_list = []
 head_list = []
 tail_list = []
 relation_num_list = []
@@ -73,7 +72,7 @@ def read_train(word_map, relation_map):
     with open('data/RE/train.txt') as f:
         count = 0
         for line in f:
-            if count > 3000:
+            if count > 10000:
                 break
             count += 1
             words = line.split()
@@ -155,21 +154,33 @@ def make_vectors(max_length, sentence_indices, word_matrix):
 def next_batch(batch_size, bags_list, word_matrix, max_length):
     last = 0
     while True:
-        next = min(last + batch_size, len(bags_list))
+        next = (last + batch_size)
+        wrap = False
+        if next > len(bags_list):
+            wrap = True
         sentence_indices = []
         bag_labels = []
-        for i in range(last, next):
+        bag_indices = []
+        for i in range(last, min(next, len(bags_list))):
             bag_name = bags_list[i]
             bag_labels.append(relation_map.get(bag_name.split()[2], 0))
             sentence_indices.append(bags_train[bag_name])
+            bag_indices.append(len(bags_train[bag_name]))
+        if wrap:
+            for i in range(next % len(bags_list)):
+                bag_name = bags_list[i]
+                bag_labels.append(relation_map.get(bag_name.split()[2], 0))
+                sentence_indices.append(bags_train[bag_name])
+                bag_indices.append(len(bags_train[bag_name]))
+
         flat_indices = [index for sublist in sentence_indices for index in sublist]
-        yield make_vectors(max_length, flat_indices, word_matrix), bag_labels
-        last = next if next != len(train_list) else 0
+        yield make_vectors(max_length, flat_indices, word_matrix), bag_labels, bag_indices
+        last = (next % len(bags_list))
 
 def load_data():
     word_matrix, word_map, word_list = read_vec()
     read_relation()
-    position_total_e1, position_total_e2, left_num_list, right_num_list = read_train(word_map, relation_map)
+    read_train(word_map, relation_map)
     bags_list = list(bags_train.keys())
     max_length = max(train_length)
     print("Max Length", max_length)
