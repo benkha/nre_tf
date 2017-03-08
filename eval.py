@@ -94,14 +94,14 @@ class NeuralRelationExtractor():
 
     def train(self):
         self.batch_iter = next_batch(self.batch_size, self.bags_list, self.word_matrix, self.max_length)
-        with tf.Session() as sess:
+        gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.333)
+        with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
             sess.run(tf.global_variables_initializer())
             for epoch in range(1000):
                 sentences, bag_labels, bag_indices = next(self.batch_iter)
                 _, entropy_loss = sess.run((self.optimizer, self.cost), feed_dict={self.sentences_placeholder: sentences, self.labels_placeholder: bag_labels, self.bag_indices: bag_indices})
-                if epoch % 100 == 0:
-                    print("Epoch:", epoch)
-                    print("Entropy Loss", entropy_loss)
+                print("Epoch:", epoch)
+                print("Entropy Loss", entropy_loss)
 
     def encoder(self, x_in):
         with tf.variable_scope('encoder'):
