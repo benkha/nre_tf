@@ -1,6 +1,7 @@
 from preprocess import load_data, next_batch
 import tensorflow as tf
 import numpy as np
+import datetime
 
 
 class NeuralRelationExtractor():
@@ -105,13 +106,12 @@ class NeuralRelationExtractor():
                 _, loss = sess.run((self.optimizer, self.cost), feed_dict={self.sentences_placeholder: sentences, self.labels_placeholder: bag_labels, self.bag_indices: bag_indices})
                 if step % 50 == 0:
                     time_str = datetime.datetime.now().isoformat()
-                    print("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, loss))
+                    print("{}: step {}, loss {:g}".format(time_str, step, loss))
                 if step % 1000 == 0:
                     print('Saving model')
                     path = saver.save(sess,save_path +'CNN_AVG_model',global_step=step)
                     tempstr = 'have saved model to '+path
                     print(tempstr)
-                    print("Epoch:", step)
 
     def encoder(self, x_in):
         with tf.variable_scope('encoder'):
