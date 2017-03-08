@@ -31,7 +31,6 @@ class NeuralRelationExtractor():
         self.bag_indices = tf.placeholder(tf.int32, [self.batch_size])
         self.logits = self.avg_bags(self.bag_indices, self.flat_sentences)
 
-        # self.logits = self.avg_bag(self.sentence_vectors)
         self.labels_placeholder = tf.placeholder(tf.int32, [None])
 
         self.cost = tf.reduce_sum(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.labels_placeholder, logits=self.logits))
@@ -97,11 +96,12 @@ class NeuralRelationExtractor():
         self.batch_iter = next_batch(self.batch_size, self.bags_list, self.word_matrix, self.max_length)
         with tf.Session() as sess:
             sess.run(tf.global_variables_initializer())
-            for epoch in range(10):
+            for epoch in range(1000):
                 sentences, bag_labels, bag_indices = next(self.batch_iter)
-                entropy_loss = sess.run((self.optimizer, self.cost), feed_dict={self.sentences_placeholder: sentences, self.labels_placeholder: bag_labels, self.bag_indices: bag_indices})
-                print("Epoch:", epoch)
-                print("Entropy Loss", entropy_loss)
+                _, entropy_loss = sess.run((self.optimizer, self.cost), feed_dict={self.sentences_placeholder: sentences, self.labels_placeholder: bag_labels, self.bag_indices: bag_indices})
+                if epoch % 100 == 0:
+                    print("Epoch:", epoch)
+                    print("Entropy Loss", entropy_loss)
 
     def encoder(self, x_in):
         with tf.variable_scope('encoder'):
