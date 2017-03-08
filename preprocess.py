@@ -2,6 +2,7 @@ import numpy as np
 import struct
 
 bags_train = {}
+bags_list = []
 head_list = []
 tail_list = []
 relation_num_list = []
@@ -10,6 +11,10 @@ limit = 30
 train_list = []
 train_position_e1 = []
 train_position_e2 = []
+left_num_list = []
+right_num_list = []
+relation_map = {}
+relation_list = []
 
 def read_word(f):
     word = b''
@@ -52,8 +57,7 @@ def read_vec():
         return word_matrix, word_mapping, word_list
 
 def read_relation():
-    relation_map = {}
-    relation_list = []
+
     with open('data/RE/relation2id.txt', 'r') as f:
         for line in f:
             relation_line = line.split()
@@ -62,17 +66,15 @@ def read_relation():
             relation_map[relation] = relation_id
             relation_list.append(relation)
     print("Relation total: ", len(relation_list))
-    return relation_map, relation_list
 
 def read_train(word_map, relation_map):
     position_min_e1 = position_max_e1 = position_min_e2 = position_max_e2 = 0
-    left_num_list = []
-    right_num_list = []
+
     with open('data/RE/train.txt') as f:
         count = 0
         for line in f:
-            # if count > 3000:
-            #     break
+            if count > 3000:
+                break
             count += 1
             words = line.split()
             head_s = words[2]
@@ -80,8 +82,8 @@ def read_train(word_map, relation_map):
             tail_s = words[3]
             tail = word_map.get(tail_s, 0)
             relation = words[4]
-            bags_train.setdefault(head_s + '\t' + tail_s + 's' + relation, []).append(len(head_list))
-            num = relation_map.get(relation, 0)
+            bags_train.setdefault(head_s + '\t' + tail_s + '\t' + relation, []).append(len(head_list))
+            relation_id = relation_map.get(relation, 0)
             tmpp = []
             n = 0
             left_num = 0
@@ -125,26 +127,52 @@ def set_with_limit(lst, i, value, limit, append=False):
     else:
         lst[i] = value
 
-def pad_sentences(train_list, max_length, train_position_e1, train_position_e2, left_num_list, right_num_list, word_matrix):
-    for i in range(len(train_list)):
-        sentence = train_list[i]
-        conl = train_position_e1[i]
-        conr = train_position_e2[i]
+def make_vectors(max_length, sentence_indices, word_matrix):
+    sentences = []
+    for i in sentence_indices:
+        word_list = []
+        words = list(train_list[i])
+        conl = list(train_position_e1[i])
+        conr = list(train_position_e2[i])
         left_num = left_num_list[i]
         right_num = right_num_list[i]
-        if len(sentence) < max_length:
-            for j in range(len(sentence), max_length):
-                sentence.append(len(word_matrix))
+        if len(words) < max_length:
+            for j in range(len(words), max_length):
+                words.append(len(word_matrix))
                 set_with_limit(conl, j, left_num - j, limit, append=True)
                 set_with_limit(conr, j, right_num - j, limit, append=True)
+        for j in range(len(words)):
+            word_id = words[j]
+            position_e1 = conl[j] + limit
+            position_e2 = conr[j] + limit
+            word_embed = [word_id]
+            new_embed = np.append(word_embed, [position_e1, position_e2])
+            word_list.append(new_embed)
+        sentences.append(word_list)
+    return sentences
 
+
+def next_batch(batch_size, bags_list, word_matrix, max_length):
+    last = 0
+    while True:
+        next = min(last + batch_size, len(bags_list))
+        sentence_indices = []
+        bag_labels = []
+        for i in range(last, next):
+            bag_name = bags_list[i]
+            bag_labels.append(relation_map.get(bag_name.split()[2], 0))
+            sentence_indices.append(bags_train[bag_name])
+        flat_indices = [index for sublist in sentence_indices for index in sublist]
+        yield make_vectors(max_length, flat_indices, word_matrix), bag_labels
+        last = next if next != len(train_list) else 0
 
 def load_data():
     word_matrix, word_map, word_list = read_vec()
-    relation_map, relation_list = read_relation()
+    read_relation()
     position_total_e1, position_total_e2, left_num_list, right_num_list = read_train(word_map, relation_map)
+    bags_list = list(bags_train.keys())
     max_length = max(train_length)
-    pad_sentences(train_list, max_length, train_position_e1, train_position_e2, left_num_list, right_num_list, word_matrix)
+    print("Max Length", max_length)
     data = {
         "word_matrix" : word_matrix,
         "word_map": word_map,
@@ -152,15 +180,7 @@ def load_data():
         "relation_map": relation_map,
         "relation_list": relation_list,
         "bags_train": bags_train,
-        "head_list": head_list,
-        "tail_list": tail_list,
-        "relation_num_list": relation_num_list,
-        "train_length": train_length,
-        "train_list": train_list,
-        "train_position_e1": train_position_e1,
-        "train_position_e2": train_position_e2,
-        "position_total_e1": position_total_e1,
-        "position_total_e2": position_total_e2,
+        "bags_list": bags_list,
         "max_length": max_length,
         "limit": limit
     }

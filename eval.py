@@ -1,4 +1,4 @@
-from preprocess import load_data
+from preprocess import load_data, next_batch
 import tensorflow as tf
 import numpy as np
 
@@ -7,6 +7,7 @@ class NeuralRelationExtractor():
 
     def __init__(self):
         self.stddev = 0.02
+        self.batch_size = 160
 
         self.data = load_data()
         self.d_a = 50
@@ -18,19 +19,18 @@ class NeuralRelationExtractor():
 
         self.word_map = self.data["word_map"]
         self.word_matrix = self.data["word_matrix"]
-        self.sentences = self.make_vectors(self.data["train_list"], self.data["train_position_e1"],
-                                           self.data["train_position_e2"])
-        self.bags_train = self.data["bags_train"]
-        self.find_longest_bag(self.bags_train)
-        self.max_length = self.data["max_length"]
         self.num_positions = 2 * self.data["limit"] + 1
+        self.bags_list = self.data["bags_list"]
+        self.max_length = self.data["max_length"]
 
-        self.sentences = tf.placeholder(tf.float32, [None, self.max_length, 3, 1])
+        self.sentences_placeholder = tf.placeholder(tf.float32, [None, self.max_length, 3])
+        self.sentences = tf.expand_dims(self.sentences_placeholder,  -1)
         self.sentence_vectors = self.train_sentence(self.sentences)
 
         self.logits = self.avg_bag(self.sentence_vectors)
+        self.labels_placeholder = tf.placeholder(tf.int32, [None])
 
-        self.cost =tf.nn.sigmoid_cross_entropy_with_logits(self.logits, self.labels)
+        self.cost = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.labels_placeholder, logits=self.logits)
 
         self.optimizer = tf.train.AdamOptimizer(0.01).minimize(self.cost)
 
@@ -42,24 +42,6 @@ class NeuralRelationExtractor():
 
         print(count)
 
-
-    def make_vectors(self, train_list, train_position_e1, train_position_e2):
-        sentences = []
-        for i in range(len(train_list)):
-            word_list = []
-            words = train_list[i]
-            conl = train_position_e1[i]
-            conr = train_position_e2[i]
-            for j in range(len(words)):
-                word_id = words[j]
-                position_e1 = conl[j]
-                position_e2 = conr[j]
-                word_embed = [word_id]
-                new_embed = np.append(word_embed, [position_e1, position_e2])
-                word_list.append(new_embed)
-            sentences.append(word_list)
-        return sentences
-
     def train_sentence(self, sentences):
         word_embedding = tf.constant(self.word_matrix, dtype="float32")
         pad_embedding = tf.get_variable("pad_embedding", [1, self.d_a], dtype="float32", initializer=tf.truncated_normal_initializer(stddev=self.stddev))
@@ -67,13 +49,19 @@ class NeuralRelationExtractor():
 
         sentences = tf.to_int64(sentences)
         sentence_embedding = tf.nn.embedding_lookup(combined_embedding, tf.slice(sentences, [0, 0, 0, 0], [-1, -1, 1, -1]))
+        print("sentence embedding:", sentence_embedding)
 
-        position_embedding = tf.get_variable("position_embedding", [self.num_positions, self.d_b])
+        position_embedding = tf.get_variable("position_embedding", [self.num_positions, self.d_b], initializer=tf.truncated_normal_initializer(stddev=self.stddev))
         position_1 = tf.nn.embedding_lookup(position_embedding, tf.slice(sentences, [0,0, 1, 0], [-1, -1, 1, -1]))
+        print("position 1:", position_1)
         position_2 = tf.nn.embedding_lookup(position_embedding, tf.slice(sentences, [0,0, 2, 0], [-1, -1, 1, -1]))
+        print("position 2:", position_2)
 
         sentence_vector = tf.concat([sentence_embedding, position_1, position_2], 4)
-        sentence_vector = tf.reshape(sentence_vector, [-1, 134, self.d, 1])
+        print('sentence_vector:')
+        print(sentence_vector)
+        sentence_vector = tf.squeeze(sentence_vector)
+        sentence_vector = tf.expand_dims(sentence_vector, -1)
         sentence_vector = self.encoder(sentence_vector)
 
         return sentence_vector
@@ -82,7 +70,7 @@ class NeuralRelationExtractor():
         x_flat = tf.reshape(x_in, [-1, self.d_c])
 
         s = tf.reduce_mean(x_flat, 0)
-        s = tf.reshape([1, self.d_c])
+        s = tf.reshape(s, [1, self.d_c])
         return s
 
     def fully_connected(self, x_in, input_shape, output_shape, scope):
@@ -95,15 +83,18 @@ class NeuralRelationExtractor():
             return tf.matmul(x_in, matrix) + bias
 
     def train(self):
+        self.batch_iter = next_batch(self.batch_size, self.bags_list, self.word_matrix, self.max_length)
         with tf.Session() as sess:
             sess.run(tf.global_variables_initializer())
             for epoch in range(10):
-                batch = self.get_batch(i)
-                entropy_loss = sess.run((self.optimizer, self.cost))
+                sentences, bag_labels = next(self.batch_iter)
+                entropy_loss = sess.run((self.optimizer, self.cost), feed_dict={self.sentences_placeholder: sentences, self.labels_placeholder: bag_labels})
 
     def encoder(self, x_in):
         with tf.variable_scope('encoder'):
             p_1 = self.conv_2d(x_in, self.l, self.d, self.d_c, "p_1")
+            print("p_1")
+            print(p_1)
             max_pool = tf.nn.max_pool(p_1, ksize=[1, p_1.shape[1], 1, 1],
                                       strides=[1, 1, 1, 1],
                                       padding="VALID")
@@ -124,3 +115,4 @@ class NeuralRelationExtractor():
         return None
 
 model = NeuralRelationExtractor()
+model.train()
