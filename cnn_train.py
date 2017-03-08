@@ -20,8 +20,10 @@ class NeuralRelationExtractor():
 
         self.word_map = self.data["word_map"]
         self.word_matrix = self.data["word_matrix"]
+        self.train_list = self.data["train_list"]
         self.num_positions = 2 * self.data["limit"] + 1
         self.bags_list = self.data["bags_list"]
+        print("Number of bags:", len(self.bags_list))
         self.num_epochs = 50
         self.max_length = self.data["max_length"]
 
@@ -96,9 +98,10 @@ class NeuralRelationExtractor():
 
     def train(self):
         save_path = './sample_model/'
-        self.batch_iter = next_batch(self.batch_size, self.bags_list, self.word_matrix, self.max_length)
-        gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.333)
-        with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
+        self.batch_iter = next_batch(self.batch_size, self.bags_list, self.train_list)
+        config = tf.ConfigProto()
+        config.gpu_options.per_process_gpu_memory_fraction = 0.5
+        with tf.Session(config=config) as sess:
             sess.run(tf.global_variables_initializer())
             saver = tf.train.Saver(max_to_keep=None)
             for step in range(self.num_epochs * len(self.bags_list) // self.batch_size):

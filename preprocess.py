@@ -2,18 +2,11 @@ import numpy as np
 import struct
 
 bags_train = {}
-head_list = []
-tail_list = []
-relation_num_list = []
-train_length = []
+bags_test = {}
 limit = 30
 train_list = []
-train_position_e1 = []
-train_position_e2 = []
-left_num_list = []
-right_num_list = []
+test_list = []
 relation_map = {}
-relation_list = []
 fix_len = 70
 
 def read_word(f):
@@ -68,58 +61,94 @@ def read_relation():
     print("Relation total: ", len(relation_list))
 
 def read_train(word_map, relation_map):
-    position_min_e1 = position_max_e1 = position_min_e2 = position_max_e2 = 0
-
     with open('data/RE/train.txt') as f:
         count = 0
         for line in f:
-            # if count > 10000:
+            # if count > 100000:
             #     break
             count += 1
             words = line.split()
+
             head_s = words[2]
-            head = word_map.get(head_s, 0)
             tail_s = words[3]
-            tail = word_map.get(tail_s, 0)
             relation = words[4]
-            bags_train.setdefault(head_s + '\t' + tail_s + '\t' + relation, []).append(len(head_list))
-            relation_id = relation_map.get(relation, 0)
-            tmpp = []
+
+            bags_train.setdefault(head_s + '\t' + tail_s + '\t' + relation, []).append(len(train_list))
             n = 0
             left_num = 0
             rightnum = 0
-            for i in range(5, len(words)):
-                temp_word = words[i]
-                if (temp_word == '###END###'):
-                    break
-                word_id = word_map.get(temp_word, 0)
-                if (temp_word == head_s):
-                    left_num = n
-                if (temp_word == tail_s):
-                    right_num = n
-                n += 1
-                tmpp.append(word_id)
-                if n >= 70:
-                    break
-            left_num_list.append(left_num)
-            right_num_list.append(right_num)
-            train_length.append(n)
-            con = np.zeros(n, dtype="int32")
-            conl = np.zeros(n, dtype="int8")
-            conr = np.zeros(n, dtype="int8")
-            for i in range(n):
-                con[i] = tmpp[i]
-                set_with_limit(conl, i, left_num - i, limit)
-                set_with_limit(conr, i, right_num - i, limit)
-            train_list.append(con)
-            train_position_e1.append(conl)
-            train_position_e2.append(conr)
 
-    position_total_e1 = position_max_e1 - position_min_e1 + 1
-    position_total_e2 = position_max_e2 - position_min_e2 + 1
-    return position_total_e1, position_total_e2, left_num_list, right_num_list
+            sentence = words[5:-1]
 
-def set_with_limit(lst, i, value, limit, append=False):
+            for i in range(len(sentence)):
+                if sentence[i] == head_s:
+                    left_num = i
+                if sentence[i] == tails_s:
+                    right_num = i
+
+            output = []
+
+            for i in range(fixlen):
+                word = word_map['BLANK']
+                rel_e1 = set_with_limit(left_num - i, limit)
+                rel_e2 = set_with_limit(right_num - i, limit)
+                output.append([word,rel_e1,rel_e2])
+
+            for i in range(min(fixlen,len(sentence))):
+                if sentence[i] not in word_map:
+                        word = word_map['UNK']
+                else:
+                        word = word_map[sentence[i]]
+
+                output[i][0] = word
+
+            train_list.append(output)
+
+def read_test(word_map, relation_map):
+    with open('data/RE/test.txt') as f:
+        count = 0
+        for line in f:
+            # if count > 100000:
+            #     break
+            count += 1
+            words = line.split()
+
+            head_s = words[2]
+            tail_s = words[3]
+            relation = words[4]
+
+            bags_test.setdefault(head_s + '\t' + tail_s + '\t' + relation, []).append(len(test_list))
+            n = 0
+            left_num = 0
+            rightnum = 0
+
+            sentence = words[5:-1]
+
+            for i in range(len(sentence)):
+                if sentence[i] == head_s:
+                    left_num = i
+                if sentence[i] == tails_s:
+                    right_num = i
+
+            output = []
+
+            for i in range(fixlen):
+                word = word_map['BLANK']
+                rel_e1 = set_with_limit(left_num - i, limit)
+                rel_e2 = set_with_limit(right_num - i, limit)
+                output.append([word,rel_e1,rel_e2])
+
+            for i in range(min(fixlen,len(sentence))):
+                if sentence[i] not in word_map:
+                        word = word_map['UNK']
+                else:
+                        word = word_map[sentence[i]]
+
+                output[i][0] = word
+
+            train_test.append(output)
+
+def set_with_limit(value, limit, append=False):
     if value >= limit:
         value = limit
     elif value <= -limit:
@@ -127,34 +156,16 @@ def set_with_limit(lst, i, value, limit, append=False):
     if append:
         lst.append(value)
     else:
-        lst[i] = value
+        return value
 
-def make_vectors(max_length, sentence_indices, word_matrix):
+def make_vectors(sentence_indices, data):
     sentences = []
     for i in sentence_indices:
-        word_list = []
-        words = list(train_list[i])
-        conl = list(train_position_e1[i])
-        conr = list(train_position_e2[i])
-        left_num = left_num_list[i]
-        right_num = right_num_list[i]
-        if len(words) < max_length:
-            for j in range(len(words), max_length):
-                words.append(len(word_matrix))
-                set_with_limit(conl, j, left_num - j, limit, append=True)
-                set_with_limit(conr, j, right_num - j, limit, append=True)
-        for j in range(len(words)):
-            word_id = words[j]
-            position_e1 = conl[j] + limit
-            position_e2 = conr[j] + limit
-            word_embed = [word_id]
-            new_embed = np.append(word_embed, [position_e1, position_e2])
-            word_list.append(new_embed)
-        sentences.append(word_list)
+        sentences.append(data[i])
     return sentences
 
 
-def next_batch(batch_size, bags_list, word_matrix, max_length):
+def next_batch(batch_size, bags_list, data):
     last = 0
     while True:
         next = (last + batch_size)
@@ -177,7 +188,7 @@ def next_batch(batch_size, bags_list, word_matrix, max_length):
                 bag_indices.append(len(bags_train[bag_name]))
 
         flat_indices = [index for sublist in sentence_indices for index in sublist]
-        yield make_vectors(max_length, flat_indices, word_matrix), bag_labels, bag_indices
+        yield make_vectors(flat_indices, data), bag_labels, bag_indices
         last = (next % len(bags_list))
 
 def load_data():
@@ -185,16 +196,17 @@ def load_data():
     read_relation()
     read_train(word_map, relation_map)
     bags_list = list(bags_train.keys())
-    max_length = max(train_length)
+    max_length = fixlen
     print("Max Length", max_length)
     data = {
         "word_matrix" : word_matrix,
         "word_map": word_map,
-        "word_list": word_list,
         "relation_map": relation_map,
-        "relation_list": relation_list,
         "bags_train": bags_train,
+        "bags_test", bags_test
         "bags_list": bags_list,
+        "train_list":, train_list,
+        "test_list":, test_list
         "max_length": max_length,
         "limit": limit
     }
