@@ -30,7 +30,7 @@ def read_vec():
         print('Word dimension:', word_dim)
 
         word_matrix = np.zeros(((word_total + 1), word_dim))
-        word_mapping = {}
+        word_map = {}
         word_list = [None] * (word_total + 1)
 
         for i in range(1, word_total + 1):
@@ -44,10 +44,13 @@ def read_vec():
             norm = np.linalg.norm(word_vec)
             word_matrix[i] = word_vec / norm
 
-            word_mapping[word] = i
+            word_map[word] = i
             word_list[i] = word
 
-        return word_matrix, word_mapping, word_list
+        word_map['UNK'] = len(word_map)
+        word_map['BLANK'] = len(word_map)
+
+        return word_matrix, word_map, word_list
 
 def read_relation():
 
@@ -57,15 +60,14 @@ def read_relation():
             relation = relation_line[0]
             relation_id = int(relation_line[1])
             relation_map[relation] = relation_id
-            relation_list.append(relation)
-    print("Relation total: ", len(relation_list))
+    print("Relation total: ", len(relation_map))
 
 def read_train(word_map, relation_map):
     with open('data/RE/train.txt') as f:
         count = 0
         for line in f:
-            # if count > 100000:
-            #     break
+            if count > 1000:
+                break
             count += 1
             words = line.split()
 
@@ -83,18 +85,18 @@ def read_train(word_map, relation_map):
             for i in range(len(sentence)):
                 if sentence[i] == head_s:
                     left_num = i
-                if sentence[i] == tails_s:
+                if sentence[i] == tail_s:
                     right_num = i
 
             output = []
 
-            for i in range(fixlen):
+            for i in range(fix_len):
                 word = word_map['BLANK']
                 rel_e1 = set_with_limit(left_num - i, limit)
                 rel_e2 = set_with_limit(right_num - i, limit)
-                output.append([word,rel_e1,rel_e2])
+                output.append([word,rel_e1 + limit,rel_e2 + limit])
 
-            for i in range(min(fixlen,len(sentence))):
+            for i in range(min(fix_len,len(sentence))):
                 if sentence[i] not in word_map:
                         word = word_map['UNK']
                 else:
@@ -127,18 +129,18 @@ def read_test(word_map, relation_map):
             for i in range(len(sentence)):
                 if sentence[i] == head_s:
                     left_num = i
-                if sentence[i] == tails_s:
+                if sentence[i] == tail_s:
                     right_num = i
 
             output = []
 
-            for i in range(fixlen):
+            for i in range(fix_len):
                 word = word_map['BLANK']
                 rel_e1 = set_with_limit(left_num - i, limit)
                 rel_e2 = set_with_limit(right_num - i, limit)
                 output.append([word,rel_e1,rel_e2])
 
-            for i in range(min(fixlen,len(sentence))):
+            for i in range(min(fix_len,len(sentence))):
                 if sentence[i] not in word_map:
                         word = word_map['UNK']
                 else:
@@ -146,17 +148,14 @@ def read_test(word_map, relation_map):
 
                 output[i][0] = word
 
-            train_test.append(output)
+            test_list.append(output)
 
-def set_with_limit(value, limit, append=False):
+def set_with_limit(value, limit):
     if value >= limit:
         value = limit
     elif value <= -limit:
         value = -limit
-    if append:
-        lst.append(value)
-    else:
-        return value
+    return value
 
 def make_vectors(sentence_indices, data):
     sentences = []
@@ -196,17 +195,17 @@ def load_data():
     read_relation()
     read_train(word_map, relation_map)
     bags_list = list(bags_train.keys())
-    max_length = fixlen
+    max_length = fix_len
     print("Max Length", max_length)
     data = {
         "word_matrix" : word_matrix,
         "word_map": word_map,
         "relation_map": relation_map,
         "bags_train": bags_train,
-        "bags_test", bags_test
+        "bags_test": bags_test,
         "bags_list": bags_list,
-        "train_list":, train_list,
-        "test_list":, test_list
+        "train_list": train_list,
+        "test_list": test_list,
         "max_length": max_length,
         "limit": limit
     }

@@ -16,7 +16,7 @@ class NeuralRelationExtractor():
         self.d_c = 230
         self.d = self.d_a + self.d_b * 2
         self.l = 3
-        self.n_r = len(self.data["relation_list"])
+        self.n_r = len(self.data["relation_map"])
 
         self.word_map = self.data["word_map"]
         self.word_matrix = self.data["word_matrix"]
@@ -33,13 +33,24 @@ class NeuralRelationExtractor():
 
         self.flat_sentences = tf.squeeze(self.sentence_vectors, [1, 2])
         self.bag_indices = tf.placeholder(tf.int32, [self.batch_size])
-        self.logits = self.avg_bags(self.bag_indices, self.flat_sentences)
+        self.avg_sentences = self.avg_bags(self.bag_indices, self.flat_sentences)
 
-        self.labels_placeholder = tf.placeholder(tf.int32, [None])
+        self.logits = self.fully_connected(self.avg_sentences, self.d_c, self.n_r, "logits")
+
+        self.labels_placeholder = tf.placeholder(tf.int32, [self.batch_size])
 
         self.cost = tf.reduce_sum(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.labels_placeholder, logits=self.logits))
 
         self.optimizer = tf.train.AdamOptimizer(0.01).minimize(self.cost)
+
+    def fully_connected(self, x_in, input_shape, output_shape, scope):
+        with tf.variable_scope(scope):
+            matrix = tf.get_variable("matrix", [input_shape, output_shape],
+                                     tf.float32,
+                                     initializer=tf.random_normal_initializer(stddev=self.stddev))
+            bias = tf.get_variable("bias", [1, output_shape],
+                                   initializer=tf.constant_initializer(0.0))
+            return tf.matmul(x_in, matrix) + bias
 
     def avg_bags(self, bag_indices, sentence_vectors):
         prev = 0
@@ -79,22 +90,6 @@ class NeuralRelationExtractor():
         sentence_vector = self.encoder(sentence_vector)
 
         return sentence_vector
-
-    def avg_bag(self, x_in):
-        x_flat = tf.reshape(x_in, [-1, self.d_c])
-
-        s = tf.reduce_mean(x_flat, 0)
-        s = tf.reshape(s, [1, self.d_c])
-        return s
-
-    def fully_connected(self, x_in, input_shape, output_shape, scope):
-        with tf.variable_scope(scope):
-            matrix = tf.get_variable("matrix", [input_shape, output_shape],
-                                     tf.float32,
-                                     initializer=tf.random_normal_initializer(stddev=self.stddev))
-            bias = tf.get_variable("bias", [1, output_shape],
-                                   initializer=tf.constant_initializer(0.0))
-            return tf.matmul(x_in, matrix) + bias
 
     def train(self):
         save_path = './sample_model/'
