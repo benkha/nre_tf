@@ -14,6 +14,7 @@ left_num_list = []
 right_num_list = []
 relation_map = {}
 relation_list = []
+fix_len = 70
 
 def read_word(f):
     word = b''
@@ -98,6 +99,8 @@ def read_train(word_map, relation_map):
                     right_num = n
                 n += 1
                 tmpp.append(word_id)
+                if n >= 70:
+                    break
             left_num_list.append(left_num)
             right_num_list.append(right_num)
             train_length.append(n)
