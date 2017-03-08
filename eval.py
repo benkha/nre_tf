@@ -21,6 +21,7 @@ class NeuralRelationExtractor():
         self.word_matrix = self.data["word_matrix"]
         self.num_positions = 2 * self.data["limit"] + 1
         self.bags_list = self.data["bags_list"]
+        self.num_epochs = 50
         self.max_length = self.data["max_length"]
 
         self.sentences_placeholder = tf.placeholder(tf.float32, [None, self.max_length, 3])
@@ -93,15 +94,24 @@ class NeuralRelationExtractor():
             return tf.matmul(x_in, matrix) + bias
 
     def train(self):
+        save_path = './sample_model/'
         self.batch_iter = next_batch(self.batch_size, self.bags_list, self.word_matrix, self.max_length)
         gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.333)
         with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
             sess.run(tf.global_variables_initializer())
-            for epoch in range(1000):
+            saver = tf.train.Saver(max_to_keep=None)
+            for step in range(self.num_epochs * len(self.bags_list) // self.batch_size):
                 sentences, bag_labels, bag_indices = next(self.batch_iter)
-                _, entropy_loss = sess.run((self.optimizer, self.cost), feed_dict={self.sentences_placeholder: sentences, self.labels_placeholder: bag_labels, self.bag_indices: bag_indices})
-                print("Epoch:", epoch)
-                print("Entropy Loss", entropy_loss)
+                _, loss = sess.run((self.optimizer, self.cost), feed_dict={self.sentences_placeholder: sentences, self.labels_placeholder: bag_labels, self.bag_indices: bag_indices})
+                if step % 50 == 0:
+                    time_str = datetime.datetime.now().isoformat()
+                    print("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, loss))
+                if step % 1000 == 0:
+                    print('Saving model')
+                    path = saver.save(sess,save_path +'CNN_AVG_model',global_step=step)
+                    tempstr = 'have saved model to '+path
+                    print(tempstr)
+                    print("Epoch:", step)
 
     def encoder(self, x_in):
         with tf.variable_scope('encoder'):
@@ -126,4 +136,5 @@ class NeuralRelationExtractor():
         return None
 
 model = NeuralRelationExtractor()
+print("=====Starting to train=====")
 model.train()
