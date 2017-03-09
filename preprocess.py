@@ -1,5 +1,7 @@
 import numpy as np
 import struct
+import random
+import sys
 
 bags_train = {}
 bags_test = {}
@@ -8,6 +10,8 @@ train_list = []
 test_list = []
 relation_map = {}
 fix_len = 70
+left_num_train = []
+right_num_train = []
 
 def read_word(f):
     word = b''
@@ -29,9 +33,8 @@ def read_vec():
         print('Word total:', word_total)
         print('Word dimension:', word_dim)
 
-        word_matrix = np.zeros(((word_total + 1), word_dim))
+        word_matrix = np.zeros(((word_total + 1), word_dim), dtype="float32")
         word_map = {}
-        word_list = [None] * (word_total + 1)
 
         for i in range(1, word_total + 1):
             word = read_word(vec_file)
@@ -45,12 +48,11 @@ def read_vec():
             word_matrix[i] = word_vec / norm
 
             word_map[word] = i
-            word_list[i] = word
 
         word_map['UNK'] = len(word_map)
         word_map['BLANK'] = len(word_map)
 
-        return word_matrix, word_map, word_list
+        return word_matrix, word_map
 
 def read_relation():
 
@@ -66,8 +68,12 @@ def read_train(word_map, relation_map):
     with open('data/RE/train.txt') as f:
         count = 0
         for line in f:
-            if count > 1000:
-                break
+            # if count > 1000:
+            #     break
+            # if count % 10000 == 0:
+            #     print("Count:", count)
+            #     print(sys.getsizeof(train_list) / 1e6)
+
             count += 1
             words = line.split()
 
@@ -88,22 +94,20 @@ def read_train(word_map, relation_map):
                 if sentence[i] == tail_s:
                     right_num = i
 
-            output = []
+            left_num_train.append(left_num)
+            right_num_train.append(right_num)
 
-            for i in range(fix_len):
-                word = word_map['BLANK']
-                rel_e1 = set_with_limit(left_num - i, limit)
-                rel_e2 = set_with_limit(right_num - i, limit)
-                output.append([word,rel_e1 + limit,rel_e2 + limit])
+            min_len = min(fix_len,len(sentence))
+            output = np.zeros((min_len, 3), dtype="int32")
 
             for i in range(min(fix_len,len(sentence))):
+                rel_e1 = set_with_limit(left_num - i, limit)
+                rel_e2 = set_with_limit(right_num - i, limit)
                 if sentence[i] not in word_map:
                         word = word_map['UNK']
                 else:
                         word = word_map[sentence[i]]
-
-                output[i][0] = word
-
+                output[i] = np.array([word,rel_e1,rel_e2])
             train_list.append(output)
 
 def read_test(word_map, relation_map):
@@ -112,6 +116,8 @@ def read_test(word_map, relation_map):
         for line in f:
             # if count > 100000:
             #     break
+            if count % 10000 == 0:
+                print("Count:", count)
             count += 1
             words = line.split()
 
@@ -132,21 +138,23 @@ def read_test(word_map, relation_map):
                 if sentence[i] == tail_s:
                     right_num = i
 
-            output = []
+            min_len = min(fix_len,len(sentence))
+            output = np.zeros((min_len, 3), dtype="int32")
 
-            for i in range(fix_len):
-                word = word_map['BLANK']
-                rel_e1 = set_with_limit(left_num - i, limit)
-                rel_e2 = set_with_limit(right_num - i, limit)
-                output.append([word,rel_e1,rel_e2])
+            # for i in range(fix_len):
+            #     word = word_map['BLANK']
+            #     rel_e1 = set_with_limit(left_num - i, limit)
+            #     rel_e2 = set_with_limit(right_num - i, limit)
+            #     output.append([word,rel_e1,rel_e2])
 
             for i in range(min(fix_len,len(sentence))):
+                rel_e1 = set_with_limit(left_num - i, limit)
+                rel_e2 = set_with_limit(right_num - i, limit)
                 if sentence[i] not in word_map:
                         word = word_map['UNK']
                 else:
                         word = word_map[sentence[i]]
-
-                output[i][0] = word
+                output[i] = np.array([word,rel_e1,rel_e2])
 
             test_list.append(output)
 
@@ -157,14 +165,27 @@ def set_with_limit(value, limit):
         value = -limit
     return value
 
-def make_vectors(sentence_indices, data):
+def make_vectors(sentence_indices, data, word_map):
     sentences = []
     for i in sentence_indices:
-        sentences.append(data[i])
+        sentence = data[i]
+        if len(sentence) < fix_len:
+            new_sentence = np.zeros((fix_len, 3), dtype="int32")
+            new_sentence[:len(sentence), :] = sentence
+            for j in range(len(sentence), fix_len):
+                word = word_map['BLANK']
+                left_num = left_num_train[i]
+                right_num = right_num_train[i]
+                rel_e1 = set_with_limit(left_num - j, limit)
+                rel_e2 = set_with_limit(right_num - j, limit)
+                new_sentence[j] = [word,rel_e1,rel_e2]
+            sentence = new_sentence
+
+        sentences.append(sentence)
     return sentences
 
 
-def next_batch(batch_size, bags_list, data):
+def next_batch(batch_size, bags_list, data, word_map):
     last = 0
     while True:
         next = (last + batch_size)
@@ -187,16 +208,33 @@ def next_batch(batch_size, bags_list, data):
                 bag_indices.append(len(bags_train[bag_name]))
 
         flat_indices = [index for sublist in sentence_indices for index in sublist]
-        yield make_vectors(flat_indices, data), bag_labels, bag_indices
+        vectors = make_vectors(flat_indices, data, word_map)
+        # print('Size of batch (MB):', sys.getsizeof(vectors) / 1e6)
+        yield vectors, bag_labels, bag_indices
         last = (next % len(bags_list))
 
+def compute_average_bag(bags):
+    total = 0.0
+    max_len = 0.0
+    for bag in bags:
+        total += len(bags[bag])
+        max_len = max(max_len, len(bags[bag]))
+    return total / len(bags), max_len
+
+
 def load_data():
-    word_matrix, word_map, word_list = read_vec()
+    word_matrix, word_map = read_vec()
     read_relation()
+    print("=====Starting to read training data=====")
     read_train(word_map, relation_map)
+    print("Size of train_list (MB):", sys.getsizeof(train_list) / 1e6)
     bags_list = list(bags_train.keys())
+    random.shuffle(bags_list)
+    avg_len, max_len = compute_average_bag(bags_train)
+    print("Length of average bag:", avg_len)
+    print("Length of max bag:", max_len)
+
     max_length = fix_len
-    print("Max Length", max_length)
     data = {
         "word_matrix" : word_matrix,
         "word_map": word_map,
@@ -210,3 +248,6 @@ def load_data():
         "limit": limit
     }
     return data
+
+if __name__ == "__main__":
+    load_data()

@@ -8,7 +8,7 @@ class NeuralRelationExtractor():
 
     def __init__(self):
         self.stddev = 0.02
-        self.batch_size = 160
+        self.batch_size = 10
 
         self.data = load_data()
         self.d_a = 50
@@ -27,7 +27,7 @@ class NeuralRelationExtractor():
         self.num_epochs = 50
         self.max_length = self.data["max_length"]
 
-        self.sentences_placeholder = tf.placeholder(tf.float32, [None, self.max_length, 3])
+        self.sentences_placeholder = tf.placeholder(tf.int32, [None, self.max_length, 3])
         self.sentences = tf.expand_dims(self.sentences_placeholder,  -1)
         self.sentence_vectors = self.train_sentence(self.sentences)
 
@@ -49,13 +49,14 @@ class NeuralRelationExtractor():
                                      tf.float32,
                                      initializer=tf.random_normal_initializer(stddev=self.stddev))
             bias = tf.get_variable("bias", [1, output_shape],
+                                   tf.float32,
                                    initializer=tf.constant_initializer(0.0))
             return tf.matmul(x_in, matrix) + bias
 
     def avg_bags(self, bag_indices, sentence_vectors):
         prev = 0
         means = []
-        for j in range(160):
+        for j in range(self.batch_size):
             i = bag_indices[j]
             sum_tensors = tf.slice(sentence_vectors, [prev, 0], [i, -1])
             mean_tensors = tf.reduce_mean(sum_tensors, 0)
@@ -77,10 +78,10 @@ class NeuralRelationExtractor():
         pad_embedding = tf.get_variable("pad_embedding", [1, self.d_a], dtype="float32", initializer=tf.truncated_normal_initializer(stddev=self.stddev))
         combined_embedding = tf.concat([word_embedding, pad_embedding], 0)
 
-        sentences = tf.to_int64(sentences)
+        # sentences = tf.to_int32(sentences)
         sentence_embedding = tf.nn.embedding_lookup(combined_embedding, tf.slice(sentences, [0, 0, 0, 0], [-1, -1, 1, -1]))
 
-        position_embedding = tf.get_variable("position_embedding", [self.num_positions, self.d_b], initializer=tf.truncated_normal_initializer(stddev=self.stddev))
+        position_embedding = tf.get_variable("position_embedding", [self.num_positions, self.d_b], dtype="float32", initializer=tf.truncated_normal_initializer(stddev=self.stddev))
         position_1 = tf.nn.embedding_lookup(position_embedding, tf.slice(sentences, [0,0, 1, 0], [-1, -1, 1, -1]))
         position_2 = tf.nn.embedding_lookup(position_embedding, tf.slice(sentences, [0,0, 2, 0], [-1, -1, 1, -1]))
 
@@ -93,7 +94,7 @@ class NeuralRelationExtractor():
 
     def train(self):
         save_path = './sample_model/'
-        self.batch_iter = next_batch(self.batch_size, self.bags_list, self.train_list)
+        self.batch_iter = next_batch(self.batch_size, self.bags_list, self.train_list, self.word_map)
         config = tf.ConfigProto()
         config.gpu_options.per_process_gpu_memory_fraction = 0.5
         with tf.Session(config=config) as sess:
@@ -123,9 +124,11 @@ class NeuralRelationExtractor():
         with tf.variable_scope(scope):
             weights = tf.get_variable("weights",
                                       [filter_height, filter_width, 1, out_shape],
+                                      dtype="float32",
                                       initializer=
                                       tf.truncated_normal_initializer(stddev=self.stddev))
             biases = tf.get_variable("biases", [out_shape],
+                                     dtype="float32",
                                      initializer=tf.constant_initializer(0.0))
             conv = tf.nn.conv2d(x_in, weights, strides=[1, 1, 1, 1], padding="VALID")
             return tf.nn.bias_add(conv, biases)
