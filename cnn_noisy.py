@@ -1,4 +1,4 @@
-from preprocess import load_data, next_batch
+from preprocess_noisy import load_data, next_batch
 import tensorflow as tf
 import numpy as np
 import datetime
@@ -8,7 +8,7 @@ class NeuralRelationExtractor():
 
     def __init__(self):
         self.stddev = 0.02
-        self.batch_size = 1
+        self.batch_size = 128
 
         self.data = load_data()
         self.d_a = 50
@@ -21,9 +21,9 @@ class NeuralRelationExtractor():
         self.word_map = self.data["word_map"]
         self.word_matrix = self.data["word_matrix"]
         self.train_list = self.data["train_list"]
+        self.train_labels = self.data["train_labels"]
         self.num_positions = 2 * self.data["limit"] + 1
-        self.bags_list = self.data["bags_list"]
-        print("Number of bags:", len(self.bags_list))
+        # self.bags_list = self.data["bags_list"]
         self.num_epochs = 50
         self.max_length = self.data["max_length"]
 
@@ -32,10 +32,10 @@ class NeuralRelationExtractor():
         self.sentence_vectors = self.train_sentence(self.sentences)
 
         self.flat_sentences = tf.squeeze(self.sentence_vectors, [1, 2])
-        self.bag_indices = tf.placeholder(tf.int32, [self.batch_size])
-        self.avg_sentences = self.avg_bags(self.bag_indices, self.flat_sentences)
+        # self.bag_indices = tf.placeholder(tf.int32, [self.batch_size])
+        # self.avg_sentences = self.avg_bags(self.bag_indices, self.flat_sentences)
 
-        self.logits = self.fully_connected(self.avg_sentences, self.d_c, self.n_r, "logits")
+        self.logits = self.fully_connected(self.flat_sentences, self.d_c, self.n_r, "logits")
 
         self.labels_placeholder = tf.placeholder(tf.int32, [self.batch_size])
 
@@ -95,15 +95,15 @@ class NeuralRelationExtractor():
 
     def train(self):
         save_path = './sample_model/'
-        self.batch_iter = next_batch(self.batch_size, self.bags_list, self.train_list, self.word_map)
+        self.batch_iter = next_batch(self.batch_size, self.train_list, self.train_labels, self.word_map)
         config = tf.ConfigProto()
         config.gpu_options.per_process_gpu_memory_fraction = 0.5
         with tf.Session(config=config) as sess:
             sess.run(tf.global_variables_initializer())
             saver = tf.train.Saver(max_to_keep=None)
-            for step in range(self.num_epochs * len(self.bags_list) // self.batch_size):
-                sentences, bag_labels, bag_indices = next(self.batch_iter)
-                _, loss = sess.run((self.optimizer, self.cost), feed_dict={self.sentences_placeholder: sentences, self.labels_placeholder: bag_labels, self.bag_indices: bag_indices})
+            for step in range(self.num_epochs * len(self.train_list) // self.batch_size):
+                sentences, sentence_labels = next(self.batch_iter)
+                _, loss = sess.run((self.optimizer, self.cost), feed_dict={self.sentences_placeholder: sentences, self.labels_placeholder: sentence_labels})
                 if step % 50 == 0:
                     time_str = datetime.datetime.now().isoformat()
                     print("{}: step {}, loss {:g}".format(time_str, step, loss))

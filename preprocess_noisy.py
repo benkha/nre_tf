@@ -8,6 +8,7 @@ bags_train = {}
 bags_test = {}
 limit = 30
 train_list = []
+train_labels = []
 test_list = []
 relation_map = {}
 fix_len = 70
@@ -63,6 +64,7 @@ def read_relation():
             relation = relation_line[0]
             relation_id = int(relation_line[1])
             relation_map[relation] = relation_id
+        relation_map['UNK'] = len(relation_map)
     print("Relation total: ", len(relation_map))
 
 def read_train(word_map, relation_map):
@@ -82,7 +84,11 @@ def read_train(word_map, relation_map):
             tail_s = words[3]
             relation = words[4]
 
-            bags_train.setdefault(head_s + '\t' + tail_s + '\t' + relation, []).append(len(train_list))
+            # bags_train.setdefault(head_s + '\t' + tail_s + '\t' + relation, []).append(len(train_list))
+            if relation in relation_map:
+                train_labels.append(relation_map[relation])
+            else:
+                train_labels.append(relation_map['UNK'])
             n = 0
             left_num = 0
             rightnum = 0
@@ -186,32 +192,28 @@ def make_vectors(sentence_indices, data, word_map):
     return sentences
 
 
-def next_batch(batch_size, bags_list, data, word_map):
+def next_batch(batch_size, data, labels, word_map):
     last = 0
+    data, labels = sklearn.shuffle(data, labels)
     while True:
         next = (last + batch_size)
         wrap = False
         if next > len(bags_list):
             wrap = True
         sentence_indices = []
-        bag_labels = []
-        bag_indices = []
-        for i in range(last, min(next, len(bags_list))):
-            bag_name = bags_list[i]
-            bag_labels.append(relation_map.get(bag_name.split()[2], 0))
-            sentence_indices.append(bags_train[bag_name])
-            bag_indices.append(len(bags_train[bag_name]))
+        sentence_labels = []
+        for i in range(last, min(next, len(data))):
+            data_labels.append(labels[i])
+            sentence_indices.append(i)
         if wrap:
             for i in range(next % len(bags_list)):
-                bag_name = bags_list[i]
-                bag_labels.append(relation_map.get(bag_name.split()[2], 0))
-                sentence_indices.append(bags_train[bag_name])
-                bag_indices.append(len(bags_train[bag_name]))
+                data_labels.append(labels[i])
+                sentence_indices.append(i)
 
         flat_indices = [index for sublist in sentence_indices for index in sublist]
         vectors = make_vectors(flat_indices, data, word_map)
         # print('Size of batch (MB):', sys.getsizeof(vectors) / 1e6)
-        yield vectors, bag_labels, bag_indices
+        yield vectors, sentence_labels
         last = (next % len(bags_list))
 
 def compute_average_bag(bags):
@@ -229,22 +231,20 @@ def load_data():
     print("=====Starting to read training data=====")
     read_train(word_map, relation_map)
     print("Size of train_list (MB):", sys.getsizeof(train_list) / 1e6)
-    bags_list = list(bags_train.keys())
-    random.shuffle(bags_list)
-    avg_len, max_len = compute_average_bag(bags_train)
-    print("Length of average bag:", avg_len)
-    print("Length of max bag:", max_len)
+    # bags_list = list(bags_train.keys())
+    # random.shuffle(bags_list)
+    # avg_len, max_len = compute_average_bag(bags_train)
+    # print("Length of average bag:", avg_len)
+    # print("Length of max bag:", max_len)
 
     max_length = fix_len
     data = {
         "word_matrix" : word_matrix,
         "word_map": word_map,
         "relation_map": relation_map,
-        "bags_train": bags_train,
-        "bags_test": bags_test,
-        "bags_list": bags_list,
         "train_list": train_list,
-        "test_list": test_list,
+        "train_labels": train_labels,
+        # "test_list": test_list,
         "max_length": max_length,
         "limit": limit
     }
