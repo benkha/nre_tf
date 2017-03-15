@@ -1,8 +1,10 @@
-import numpy as np
+import sys
 import struct
 import random
-import sys
+
+import numpy as np
 import sklearn
+import pickle
 
 bags_train = {}
 bags_test = {}
@@ -108,14 +110,19 @@ def read_train(word_map, relation_map):
             output = np.zeros((min_len, 3), dtype="int32")
 
             for i in range(min(fix_len,len(sentence))):
-                rel_e1 = set_with_limit(left_num - i, limit)
-                rel_e2 = set_with_limit(right_num - i, limit)
+                rel_e1 = set_with_limit(left_num - i, limit) + limit
+                rel_e2 = set_with_limit(right_num - i, limit) + limit
                 if sentence[i] not in word_map:
                         word = word_map['UNK']
                 else:
                         word = word_map[sentence[i]]
                 output[i] = np.array([word,rel_e1,rel_e2])
             train_list.append(output)
+    print("Dumping picke data")
+    pickle.dump(train_list, open("train_list.pickle", "wb"))
+    pickle.dump(train_labels, open("train_labels.pickle", "wb"))
+    pickle.dump(left_num_train, open("left_num_train.pickle", "wb"))
+    pickle.dump(right_num_train, open("right_num_train.pickle", "wb"))
 
 def read_test(word_map, relation_map):
     with open('data/RE/test.txt') as f:
@@ -155,8 +162,8 @@ def read_test(word_map, relation_map):
             #     output.append([word,rel_e1,rel_e2])
 
             for i in range(min(fix_len,len(sentence))):
-                rel_e1 = set_with_limit(left_num - i, limit)
-                rel_e2 = set_with_limit(right_num - i, limit)
+                rel_e1 = set_with_limit(left_num - i, limit) + limit
+                rel_e2 = set_with_limit(right_num - i, limit) + limit
                 if sentence[i] not in word_map:
                         word = word_map['UNK']
                 else:
@@ -164,6 +171,8 @@ def read_test(word_map, relation_map):
                 output[i] = np.array([word,rel_e1,rel_e2])
 
             test_list.append(output)
+
+
 
 def set_with_limit(value, limit):
     if value >= limit:
@@ -183,8 +192,8 @@ def make_vectors(sentence_indices, data, word_map):
                 word = word_map['BLANK']
                 left_num = left_num_train[i]
                 right_num = right_num_train[i]
-                rel_e1 = set_with_limit(left_num - j, limit)
-                rel_e2 = set_with_limit(right_num - j, limit)
+                rel_e1 = set_with_limit(left_num - j, limit) + limit
+                rel_e2 = set_with_limit(right_num - j, limit) + limit
                 new_sentence[j] = [word,rel_e1,rel_e2]
             sentence = new_sentence
 
@@ -194,27 +203,25 @@ def make_vectors(sentence_indices, data, word_map):
 
 def next_batch(batch_size, data, labels, word_map):
     last = 0
-    data, labels = sklearn.shuffle(data, labels)
+    data, labels = sklearn.utils.shuffle(data, labels)
     while True:
         next = (last + batch_size)
         wrap = False
-        if next > len(bags_list):
+        if next > len(data):
             wrap = True
         sentence_indices = []
         sentence_labels = []
         for i in range(last, min(next, len(data))):
-            data_labels.append(labels[i])
+            sentence_labels.append(labels[i])
             sentence_indices.append(i)
         if wrap:
-            for i in range(next % len(bags_list)):
-                data_labels.append(labels[i])
+            for i in range(next % len(train_list)):
+                sentence_labels.append(labels[i])
                 sentence_indices.append(i)
-
-        flat_indices = [index for sublist in sentence_indices for index in sublist]
-        vectors = make_vectors(flat_indices, data, word_map)
+        vectors = make_vectors(sentence_indices, data, word_map)
         # print('Size of batch (MB):', sys.getsizeof(vectors) / 1e6)
         yield vectors, sentence_labels
-        last = (next % len(bags_list))
+        last = (next % len(train_list))
 
 def compute_average_bag(bags):
     total = 0.0
@@ -226,10 +233,18 @@ def compute_average_bag(bags):
 
 
 def load_data():
+    global train_list, train_labels, left_num_train, right_num_train
     word_matrix, word_map = read_vec()
     read_relation()
     print("=====Starting to read training data=====")
-    read_train(word_map, relation_map)
+    try:
+        train_list = pickle.load(open("train_list.pickle", "rb"))
+        train_labels = pickle.load(open("train_labels.pickle", "rb"))
+        left_num_train = pickle.load(open("left_num_train.pickle", "rb"))
+        right_num_train = pickle.load(open("right_num_train.pickle", "rb"))
+    except (OSError, IOError) as e:
+        print("Error loading pickle data")
+        read_train(word_map, relation_map)
     print("Size of train_list (MB):", sys.getsizeof(train_list) / 1e6)
     # bags_list = list(bags_train.keys())
     # random.shuffle(bags_list)
