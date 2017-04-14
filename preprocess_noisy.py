@@ -120,7 +120,7 @@ def read_train(word_map, relation_map):
                         word = word_map[sentence[i]]
                 output[i] = np.array([word,rel_e1,rel_e2])
             train_list.append(output)
-    print("Dumping picke data")
+    print("Dumping pickle train")
     pickle.dump(train_list, open("./pickle/noisy/train_list.pickle", "wb"))
     pickle.dump(train_labels, open("./pickle/noisy/train_labels.pickle", "wb"))
     pickle.dump(left_num_train, open("./pickle/noisy/left_num_train.pickle", "wb"))
@@ -170,7 +170,7 @@ def read_test(word_map, relation_map):
                         word = word_map[sentence[i]]
                 output[i] = np.array([word,rel_e1,rel_e2])
             test_list.append(output)
-    print("Dumping picke data")
+    print("Dumping pickle test")
     pickle.dump(train_list, open("./pickle/noisy/test_list.pickle", "wb"))
     pickle.dump(train_labels, open("./pickle/noisy/test_labels.pickle", "wb"))
     pickle.dump(left_num_train, open("./pickle/noisy/left_num_test.pickle", "wb"))

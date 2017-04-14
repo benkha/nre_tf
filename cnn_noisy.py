@@ -44,7 +44,7 @@ class NeuralRelationExtractor():
         self.right_num_test = self.data["right_num_test"]
 
         self.num_positions = 2 * self.data["limit"] + 1
-        self.num_epochs = 1
+        self.num_epochs = 10
         self.max_length = self.data["max_length"]
 
         self.sentences_placeholder = tf.placeholder(tf.int32, [self.batch_size, self.max_length, 3])
@@ -166,8 +166,8 @@ class NeuralRelationExtractor():
             saver = tf.train.Saver(max_to_keep=None)
             # saver.restore(sess, save_path + 'CNN_NOISY_model-8001')
             print("Total iterations:", self.num_epochs * len(self.train_list) // self.batch_size)
-            # for step in range(self.num_epochs * len(self.train_list) // self.batch_size):
-            for step in range(100):
+            for step in range(self.num_epochs * len(self.train_list) // self.batch_size):
+            # for step in range(100):
                 sentences, sentence_labels = next(self.batch_iter)
                 if step == 0:
                     dev_loss, dev_auc, _, _ = self.test_step(sess)
