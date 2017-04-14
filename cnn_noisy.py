@@ -164,7 +164,7 @@ class NeuralRelationExtractor():
             train_writer = tf.summary.FileWriter(tensor_board_dir, sess.graph)
             test_writer = tf.summary.FileWriter(tensor_board_test_dir, sess.graph)
             saver = tf.train.Saver(max_to_keep=None)
-            # saver.restore(sess, save_path + 'CNN_NOISY_model-8001')
+            saver.restore(sess, save_path + 'CNN_NOISY_model-7001')
             print("Total iterations:", self.num_epochs * len(self.train_list) // self.batch_size)
             for step in range(self.num_epochs * len(self.train_list) // self.batch_size):
             # for step in range(100):
@@ -220,6 +220,8 @@ class NeuralRelationExtractor():
         return tf.stack(means)
 
     def test(self, sess=None):
+        print("===Starting testing===")
+        print("Test length:", len(self.test_list))
         if sess != None:
             loss, auc, probabilities, labels = self.test_step(sess, len(self.test_list))
             print('Length of test:', len(self.test_list))
