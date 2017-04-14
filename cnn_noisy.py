@@ -44,7 +44,7 @@ class NeuralRelationExtractor():
         self.right_num_test = self.data["right_num_test"]
 
         self.num_positions = 2 * self.data["limit"] + 1
-        self.num_epochs = 1
+        self.num_epochs = 10
         self.max_length = self.data["max_length"]
 
         self.sentences_placeholder = tf.placeholder(tf.int32, [self.batch_size, self.max_length, 3])
@@ -150,7 +150,7 @@ class NeuralRelationExtractor():
         save_path = './sample_model/'
         self.batch_iter = next_batch(self.batch_size, self.train_list, self.train_labels, self.left_num_train, self.right_num_train, self.word_map, len(self.train_list))
         config = tf.ConfigProto()
-        config.gpu_options.per_process_gpu_memory_fraction = 0.5
+        config.gpu_options.per_process_gpu_memory_fraction = 0.9
         timestamp = str(int(time.time()))
         print("Timestamp", timestamp)
         tensor_board_dir = './tensorboard/' + timestamp + '/train'
@@ -166,8 +166,8 @@ class NeuralRelationExtractor():
             saver = tf.train.Saver(max_to_keep=None)
             # saver.restore(sess, save_path + 'CNN_NOISY_model-8001')
             print("Total iterations:", self.num_epochs * len(self.train_list) // self.batch_size)
-            # for step in range(self.num_epochs * len(self.train_list) // self.batch_size):
-            for step in range(100):
+            for step in range(self.num_epochs * len(self.train_list) // self.batch_size):
+            # for step in range(100):
                 sentences, sentence_labels = next(self.batch_iter)
                 if step == 0:
                     dev_loss, dev_auc, _, _ = self.test_step(sess)
@@ -222,7 +222,7 @@ class NeuralRelationExtractor():
     def test(self, sess=None):
         if sess != None:
             loss, auc, probabilities, labels = self.test_step(sess, len(self.test_list))
-            print(len(self.test_list))
+            print('Length of test:', len(self.test_list))
             probabilities = np.concatenate(probabilities, axis=0)
             labels = np.concatenate(labels, axis=0)
             print("Dumping pr curve")
@@ -231,8 +231,10 @@ class NeuralRelationExtractor():
             self.generate_pr(labels, probabilities)
         else:
             print("Loading pr curve")
-            probabilities = pickle.load(open("./pickle/pr_curve/noisy_p.pickle", "rb"))
-            labels = pickle.load(open("./pickle/pr_curve/noisy_label.pickle", "rb"))
+            probabilities = pickle.load(open("./pickle2/pr_curve/noisy_p.pickle", "rb"))
+            labels = pickle.load(open("./pickle2/pr_curve/noisy_label.pickle", "rb"))
+            print(probabilities.shape)
+            print(labels.shape)
             self.generate_pr(labels, probabilities)
 
     def generate_y_matrix(self, y_test):
@@ -290,5 +292,5 @@ class NeuralRelationExtractor():
 
 model = NeuralRelationExtractor()
 print("=====Starting to train=====")
-model.train()
-# model.test()
+# model.train()
+model.test()
