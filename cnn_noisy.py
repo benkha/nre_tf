@@ -1,14 +1,24 @@
 from preprocess_noisy import load_data, next_batch
 import tensorflow as tf
+import os
+import time
 import numpy as np
 import datetime
+from sklearn.metrics import precision_recall_curve
+from sklearn.metrics import average_precision_score
+import matplotlib.pyplot as plt
+import pickle
 
+def _summary_for_scalar(name, value):
+    return tf.Summary(value=[tf.Summary.Value(tag=name, simple_value=float(value))])
 
 class NeuralRelationExtractor():
+
 
     def __init__(self):
         self.stddev = 0.02
         self.batch_size = 128
+        self.test_length = 2048
 
         self.data = load_data()
         self.d_a = 50
@@ -20,28 +30,46 @@ class NeuralRelationExtractor():
 
         self.word_map = self.data["word_map"]
         self.word_matrix = self.data["word_matrix"]
+
         self.train_list = self.data["train_list"]
         self.train_labels = self.data["train_labels"]
+        self.left_num_train = self.data["left_num_train"]
+        self.right_num_train = self.data["right_num_train"]
+
+        self.test_list = self.data["test_list"]
+        self.test_labels = self.data["test_labels"]
+        self.left_num_test = self.data["left_num_test"]
+        self.right_num_test = self.data["right_num_test"]
+
         self.num_positions = 2 * self.data["limit"] + 1
-        # self.bags_list = self.data["bags_list"]
-        self.num_epochs = 50
+        self.num_epochs = 1
         self.max_length = self.data["max_length"]
 
-        self.sentences_placeholder = tf.placeholder(tf.int32, [None, self.max_length, 3])
+        self.sentences_placeholder = tf.placeholder(tf.int32, [self.batch_size, self.max_length, 3])
         self.sentences = tf.expand_dims(self.sentences_placeholder,  -1)
         self.sentence_vectors = self.train_sentence(self.sentences)
 
         self.flat_sentences = tf.squeeze(self.sentence_vectors, [1, 2])
-        # self.bag_indices = tf.placeholder(tf.int32, [self.batch_size])
-        # self.avg_sentences = self.avg_bags(self.bag_indices, self.flat_sentences)
-
         self.logits = self.fully_connected(self.flat_sentences, self.d_c, self.n_r, "logits")
-
+        self.probabilities = self.logits / tf.reduce_sum(self.logits)
         self.labels_placeholder = tf.placeholder(tf.int32, [self.batch_size])
 
-        self.cost = tf.reduce_sum(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.labels_placeholder, logits=self.logits))
+        self.cost = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.labels_placeholder, logits=self.logits))
 
-        self.optimizer = tf.train.AdamOptimizer(0.01).minimize(self.cost)
+        self.global_step = tf.Variable(0, name='global_step', trainable=False)
+
+        self.optimizer = tf.train.AdamOptimizer(0.1).minimize(self.cost, global_step=self.global_step)
+
+        tf.summary.scalar("loss", self.cost)
+
+        self.train_accuracy = self.accuracy(self.logits, self.labels_placeholder)
+        self.summary_op = tf.summary.merge_all()
+
+    def accuracy(self, logits, labels):
+        correct_prediction = tf.equal(tf.to_int32(tf.argmax(logits, 1)), labels)
+        accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
+        tf.summary.scalar("auc", accuracy)
+        return accuracy
 
     def fully_connected(self, x_in, input_shape, output_shape, scope):
         with tf.variable_scope(scope):
@@ -79,7 +107,6 @@ class NeuralRelationExtractor():
         pad_embedding = tf.get_variable("pad_embedding", [1, self.d_a], dtype="float32", initializer=tf.truncated_normal_initializer(stddev=self.stddev))
         combined_embedding = tf.concat([word_embedding, pad_embedding], 0)
 
-        # sentences = tf.to_int32(sentences)
         sentence_embedding = tf.nn.embedding_lookup(combined_embedding, tf.slice(sentences, [0, 0, 0, 0], [-1, -1, 1, -1]))
 
         position_embedding = tf.get_variable("position_embedding", [self.num_positions, self.d_b], dtype="float32", initializer=tf.truncated_normal_initializer(stddev=self.stddev))
@@ -93,25 +120,75 @@ class NeuralRelationExtractor():
 
         return sentence_vector
 
+
+
+    def test_step(self, sess):
+        dev_loss = []
+        dev_auc = []
+        dev_probabilities = []
+        dev_labels = []
+
+        # create batch
+        test_iter = next_batch(self.batch_size, self.test_list, self.test_labels, self.left_num_test, self.right_num_test, self.word_map, self.test_length, test=True)
+
+        for batch in test_iter:
+            sentences, labels = batch
+            #a_batch = np.ones((len(batch), 1), dtype=np.float32) / len(batch) # average
+            loss, accuracy, _, probability = sess.run([self.cost, self.train_accuracy, self.summary_op, self.probabilities], feed_dict={self.sentences_placeholder: sentences, self.labels_placeholder: labels})
+            dev_loss.append(loss)
+            dev_auc.append(accuracy)
+            dev_probabilities.append(probability)
+            dev_labels.append(labels)
+
+        return np.mean(dev_loss), np.mean(dev_auc), dev_probabilities, dev_labels
+
     def train(self):
         save_path = './sample_model/'
-        self.batch_iter = next_batch(self.batch_size, self.train_list, self.train_labels, self.word_map)
+        self.batch_iter = next_batch(self.batch_size, self.train_list, self.train_labels, self.left_num_train, self.right_num_train, self.word_map, len(self.train_list))
         config = tf.ConfigProto()
         config.gpu_options.per_process_gpu_memory_fraction = 0.5
+        timestamp = str(int(time.time()))
+        print("Timestamp", timestamp)
+        tensor_board_dir = './tensorboard/' + timestamp + '/train'
+        tensor_board_test_dir = './tensorboard/' + timestamp + '/test'
+        if not os.path.exists(tensor_board_dir):
+            os.makedirs(tensor_board_dir)
+        if not os.path.exists(tensor_board_test_dir):
+            os.makedirs(tensor_board_test_dir)
         with tf.Session(config=config) as sess:
             sess.run(tf.global_variables_initializer())
+            train_writer = tf.summary.FileWriter(tensor_board_dir, sess.graph)
+            test_writer = tf.summary.FileWriter(tensor_board_test_dir, sess.graph)
             saver = tf.train.Saver(max_to_keep=None)
+            # latest_ckpt = tf.train.latest_checkpoint(save_path, latest_filename=None)
+            # print(latest_ckpt)
+            # saver.restore(sess, save_path + 'CNN_NOISY_model-57000')
+            all_vars = tf.get_collection('vars')
+            print("Total iterations:", self.num_epochs * len(self.train_list) // self.batch_size)
             for step in range(self.num_epochs * len(self.train_list) // self.batch_size):
+            # for step in range(100):
+
                 sentences, sentence_labels = next(self.batch_iter)
-                _, loss = sess.run((self.optimizer, self.cost), feed_dict={self.sentences_placeholder: sentences, self.labels_placeholder: sentence_labels})
+                if step == 0:
+                    dev_loss, dev_auc, _, _ = self.test_step(sess)
+                _, loss, accuracy, summary = sess.run((self.optimizer, self.cost, self.train_accuracy, self.summary_op),
+                                                      feed_dict={self.sentences_placeholder: sentences, self.labels_placeholder: sentence_labels})
                 if step % 50 == 0:
                     time_str = datetime.datetime.now().isoformat()
-                    print("{}: step {}, loss {:g}".format(time_str, step, loss))
+                    print("Train: step {}, loss {:g}, accuracy {:g}".format(step, loss, accuracy))
+                    train_writer.add_summary(summary, global_step=step)
+                    if step != 0:
+                        dev_loss, dev_auc, _, _ = self.test_step(sess)
+                    print("Test: step {}, loss {:g}, accuracy {:g}".format(step, dev_loss, dev_auc))
+                    test_writer.add_summary(_summary_for_scalar('loss', dev_loss), global_step=step)
+                    test_writer.add_summary(_summary_for_scalar('auc', dev_auc), global_step=step)
                 if step % 1000 == 0:
-                    print('Saving model')
-                    path = saver.save(sess,save_path +'CNN_AVG_model',global_step=step)
-                    tempstr = 'have saved model to '+path
-                    print(tempstr)
+                    # print('Saving model')
+                    path = saver.save(sess,save_path +'CNN_NOISY_model',global_step=self.global_step)
+                    # tempstr = 'have saved model to '+path
+                    # print(tempstr)
+            self.test(sess)
+
 
     def encoder(self, x_in):
         with tf.variable_scope('encoder'):
@@ -145,6 +222,45 @@ class NeuralRelationExtractor():
             prev += i
         return tf.stack(means)
 
+    def test(self, sess):
+        loss, auc, probabilities, labels = self.test_step(sess)
+        probabilities = np.concatenate(probabilities, axis=0)
+        labels = np.concatenate(labels, axis=0)
+        pickle.dump(probabilities, open("./pickle/pr_curve/noisy_p.pickle", "wb"))
+        pickle.dump(labels, open("./pickle/pr_curve/noisy_label.pickle", "wb"))
+        self.generate_pr(labels, probabilities)
+
+    def generate_y_matrix(self, y_test):
+        y_matrix = np.zeros((len(y_test), self.n_r))
+        for i in range(len(y_test)):
+            for j in range(self.n_r):
+                if y_test[i] == j:
+                    y_matrix[i][j] = 1
+        return y_matrix
+
+    def generate_pr(self, y_test, y_score):
+        precision = dict()
+        recall = dict()
+        average_precision = dict()
+        y_test = self.generate_y_matrix(y_test)
+        precision["micro"], recall["micro"], _ = precision_recall_curve(y_test.ravel(),
+                                                                        y_score.ravel())
+        average_precision["micro"] = average_precision_score(y_test, y_score,
+                                                             average="micro")
+        lw = 2
+        plt.clf()
+        plt.xlabel('Recall')
+        plt.ylabel('Precision')
+        plt.ylim([0.0, 1.05])
+        plt.xlim([0.0, 1.0])
+        plt.plot(recall["micro"], precision["micro"], color='gold', lw=lw,
+         label='micro-average Precision-recall curve (area = {0:0.2f})'
+               ''.format(average_precision["micro"]))
+        plt.title('Extension of Precision-Recall curve to multi-class')
+        plt.legend(loc="lower right")
+        plt.show()
+
+
     def sentence_attention(self, x_in):
         A = tf.get_variable("A", [self.d_c],
                             initializer=tf.truncated_normal_initializer(stddev=self.stddev))
@@ -152,6 +268,7 @@ class NeuralRelationExtractor():
                             initializer=tf.truncated_normal_initializer(stddev=self.stddev))
         A_matrix = tf.diag(A)
         return tf.matmul(x_in, tf.matmul(A_matrix, r))
+
 
 model = NeuralRelationExtractor()
 print("=====Starting to train=====")

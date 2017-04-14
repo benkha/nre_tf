@@ -12,10 +12,13 @@ limit = 30
 train_list = []
 train_labels = []
 test_list = []
+test_labels = []
 relation_map = {}
 fix_len = 70
 left_num_train = []
 right_num_train = []
+left_num_test = []
+right_num_test = []
 
 def read_word(f):
     word = b''
@@ -119,19 +122,17 @@ def read_train(word_map, relation_map):
                 output[i] = np.array([word,rel_e1,rel_e2])
             train_list.append(output)
     print("Dumping picke data")
-    pickle.dump(train_list, open("train_list.pickle", "wb"))
-    pickle.dump(train_labels, open("train_labels.pickle", "wb"))
-    pickle.dump(left_num_train, open("left_num_train.pickle", "wb"))
-    pickle.dump(right_num_train, open("right_num_train.pickle", "wb"))
+    pickle.dump(train_list, open("./pickle/noisy/train_list.pickle", "wb"))
+    pickle.dump(train_labels, open("./pickle/noisy/train_labels.pickle", "wb"))
+    pickle.dump(left_num_train, open("./pickle/noisy/left_num_train.pickle", "wb"))
+    pickle.dump(right_num_train, open("./pickle/noisy/right_num_train.pickle", "wb"))
 
 def read_test(word_map, relation_map):
     with open('data/RE/test.txt') as f:
         count = 0
         for line in f:
-            # if count > 100000:
+            # if count > 2000:
             #     break
-            if count % 10000 == 0:
-                print("Count:", count)
             count += 1
             words = line.split()
 
@@ -139,7 +140,10 @@ def read_test(word_map, relation_map):
             tail_s = words[3]
             relation = words[4]
 
-            bags_test.setdefault(head_s + '\t' + tail_s + '\t' + relation, []).append(len(test_list))
+            if relation in relation_map:
+                test_labels.append(relation_map[relation])
+            else:
+                test_labels.append(relation_map['UNK'])
             n = 0
             left_num = 0
             rightnum = 0
@@ -152,14 +156,11 @@ def read_test(word_map, relation_map):
                 if sentence[i] == tail_s:
                     right_num = i
 
+            left_num_test.append(left_num)
+            right_num_test.append(right_num)
+
             min_len = min(fix_len,len(sentence))
             output = np.zeros((min_len, 3), dtype="int32")
-
-            # for i in range(fix_len):
-            #     word = word_map['BLANK']
-            #     rel_e1 = set_with_limit(left_num - i, limit)
-            #     rel_e2 = set_with_limit(right_num - i, limit)
-            #     output.append([word,rel_e1,rel_e2])
 
             for i in range(min(fix_len,len(sentence))):
                 rel_e1 = set_with_limit(left_num - i, limit) + limit
@@ -169,8 +170,13 @@ def read_test(word_map, relation_map):
                 else:
                         word = word_map[sentence[i]]
                 output[i] = np.array([word,rel_e1,rel_e2])
-
             test_list.append(output)
+    print("Dumping picke data")
+    pickle.dump(train_list, open("./pickle/noisy/test_list.pickle", "wb"))
+    pickle.dump(train_labels, open("./pickle/noisy/test_labels.pickle", "wb"))
+    pickle.dump(left_num_train, open("./pickle/noisy/left_num_test.pickle", "wb"))
+    pickle.dump(right_num_train, open("./pickle/noisy/right_num_test.pickle", "wb"))
+
 
 
 
@@ -181,7 +187,7 @@ def set_with_limit(value, limit):
         value = -limit
     return value
 
-def make_vectors(sentence_indices, data, word_map):
+def make_vectors(sentence_indices, data, word_map, left_num_list, right_num_list):
     sentences = []
     for i in sentence_indices:
         sentence = data[i]
@@ -190,8 +196,8 @@ def make_vectors(sentence_indices, data, word_map):
             new_sentence[:len(sentence), :] = sentence
             for j in range(len(sentence), fix_len):
                 word = word_map['BLANK']
-                left_num = left_num_train[i]
-                right_num = right_num_train[i]
+                left_num = left_num_list[i]
+                right_num = right_num_list[i]
                 rel_e1 = set_with_limit(left_num - j, limit) + limit
                 rel_e2 = set_with_limit(right_num - j, limit) + limit
                 new_sentence[j] = [word,rel_e1,rel_e2]
@@ -201,27 +207,26 @@ def make_vectors(sentence_indices, data, word_map):
     return sentences
 
 
-def next_batch(batch_size, data, labels, word_map):
+def next_batch(batch_size, data, labels, left_num_list, right_num_list, word_map, length, test=False):
     last = 0
-    data, labels = sklearn.utils.shuffle(data, labels)
-    while True:
-        next = (last + batch_size)
+    wrap = False
+    while not wrap or not test:
         wrap = False
-        if next > len(data):
+        next = (last + batch_size)
+        if next >= length:
             wrap = True
         sentence_indices = []
         sentence_labels = []
-        for i in range(last, min(next, len(data))):
+        for i in range(last, min(next, length)):
             sentence_labels.append(labels[i])
             sentence_indices.append(i)
         if wrap:
-            for i in range(next % len(train_list)):
+            for i in range(next % length):
                 sentence_labels.append(labels[i])
                 sentence_indices.append(i)
-        vectors = make_vectors(sentence_indices, data, word_map)
-        # print('Size of batch (MB):', sys.getsizeof(vectors) / 1e6)
+        vectors = make_vectors(sentence_indices, data, word_map, left_num_list, right_num_list)
         yield vectors, sentence_labels
-        last = (next % len(train_list))
+        last = (next % length)
 
 def compute_average_bag(bags):
     total = 0.0
@@ -234,23 +239,28 @@ def compute_average_bag(bags):
 
 def load_data():
     global train_list, train_labels, left_num_train, right_num_train
+    global test_list, test_labels, left_num_test, right_num_test
     word_matrix, word_map = read_vec()
     read_relation()
     print("=====Starting to read training data=====")
     try:
-        train_list = pickle.load(open("train_list.pickle", "rb"))
-        train_labels = pickle.load(open("train_labels.pickle", "rb"))
-        left_num_train = pickle.load(open("left_num_train.pickle", "rb"))
-        right_num_train = pickle.load(open("right_num_train.pickle", "rb"))
+        train_list = pickle.load(open("./pickle/noisy/train_list.pickle", "rb"))
+        train_labels = pickle.load(open("./pickle/noisy/train_labels.pickle", "rb"))
+        left_num_train = pickle.load(open("./pickle/noisy/left_num_train.pickle", "rb"))
+        right_num_train = pickle.load(open("./pickle/noisy/right_num_train.pickle", "rb"))
+        test_list = pickle.load(open("./pickle/noisy/test_list.pickle", "rb"))
+        test_labels = pickle.load(open("./pickle/noisy/test_labels.pickle", "rb"))
+        left_num_test = pickle.load(open("./pickle/noisy/left_num_test.pickle", "rb"))
+        right_num_test = pickle.load(open("./pickle/noisy/right_num_test.pickle", "rb"))
     except (OSError, IOError) as e:
         print("Error loading pickle data")
         read_train(word_map, relation_map)
+        read_test(word_map, relation_map)
+
+    print("Number of training examples", len(train_list))
     print("Size of train_list (MB):", sys.getsizeof(train_list) / 1e6)
-    # bags_list = list(bags_train.keys())
-    # random.shuffle(bags_list)
-    # avg_len, max_len = compute_average_bag(bags_train)
-    # print("Length of average bag:", avg_len)
-    # print("Length of max bag:", max_len)
+    train_list, train_labels = sklearn.utils.shuffle(train_list, train_labels)
+    test_list, test_labels = sklearn.utils.shuffle(test_list, test_labels)
 
     max_length = fix_len
     data = {
@@ -259,7 +269,12 @@ def load_data():
         "relation_map": relation_map,
         "train_list": train_list,
         "train_labels": train_labels,
-        # "test_list": test_list,
+        "left_num_train": left_num_train,
+        "right_num_train": right_num_train,
+        "test_list": test_list,
+        "test_labels": test_labels,
+        "left_num_test": left_num_test,
+        "right_num_test": right_num_test,
         "max_length": max_length,
         "limit": limit
     }

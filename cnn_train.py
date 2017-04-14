@@ -8,7 +8,7 @@ class NeuralRelationExtractor():
 
     def __init__(self):
         self.stddev = 0.02
-        self.batch_size = 1
+        self.batch_size = 160
 
         self.data = load_data()
         self.d_a = 50
@@ -42,6 +42,12 @@ class NeuralRelationExtractor():
         self.cost = tf.reduce_sum(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.labels_placeholder, logits=self.logits))
 
         self.optimizer = tf.train.AdamOptimizer(0.01).minimize(self.cost)
+
+        tf.summary.scalar("cost", self.cost)
+
+        # merge all summaries into a single "operation" which we can execute in a session
+        self.summary_op = tf.summary.merge_all()
+
 
     def fully_connected(self, x_in, input_shape, output_shape, scope):
         with tf.variable_scope(scope):
@@ -100,10 +106,13 @@ class NeuralRelationExtractor():
         config.gpu_options.per_process_gpu_memory_fraction = 0.5
         with tf.Session(config=config) as sess:
             sess.run(tf.global_variables_initializer())
+            train_writer = tf.summary.FileWriter('/tmp/tensorflow/train',
+                                      sess.graph)
             saver = tf.train.Saver(max_to_keep=None)
             for step in range(self.num_epochs * len(self.bags_list) // self.batch_size):
                 sentences, bag_labels, bag_indices = next(self.batch_iter)
-                _, loss = sess.run((self.optimizer, self.cost), feed_dict={self.sentences_placeholder: sentences, self.labels_placeholder: bag_labels, self.bag_indices: bag_indices})
+                _, loss, summary = sess.run((self.optimizer, self.cost, self.summary_op), feed_dict={self.sentences_placeholder: sentences, self.labels_placeholder: bag_labels, self.bag_indices: bag_indices})
+                train_writer.add_summary(summary, step)
                 if step % 50 == 0:
                     time_str = datetime.datetime.now().isoformat()
                     print("{}: step {}, loss {:g}".format(time_str, step, loss))

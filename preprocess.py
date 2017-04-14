@@ -3,6 +3,7 @@ import struct
 import random
 import sys
 import sklearn
+import pickle
 
 bags_train = {}
 bags_test = {}
@@ -63,6 +64,7 @@ def read_relation():
             relation = relation_line[0]
             relation_id = int(relation_line[1])
             relation_map[relation] = relation_id
+    relation_map['UNK'] = len(relation_map)
     print("Relation total: ", len(relation_map))
 
 def read_train(word_map, relation_map):
@@ -102,14 +104,19 @@ def read_train(word_map, relation_map):
             output = np.zeros((min_len, 3), dtype="int32")
 
             for i in range(min(fix_len,len(sentence))):
-                rel_e1 = set_with_limit(left_num - i, limit)
-                rel_e2 = set_with_limit(right_num - i, limit)
+                rel_e1 = set_with_limit(left_num - i, limit) + limit
+                rel_e2 = set_with_limit(right_num - i, limit) + limit
                 if sentence[i] not in word_map:
                         word = word_map['UNK']
                 else:
                         word = word_map[sentence[i]]
                 output[i] = np.array([word,rel_e1,rel_e2])
             train_list.append(output)
+    print("Dumping picke data")
+    pickle.dump(train_list, open("./pickle/avg/train_list.pickle", "wb"))
+    pickle.dump(bags_train, open("./pickle/avg/bags_train.pickle", "wb"))
+    pickle.dump(left_num_train, open("./pickle/avg/left_num_train.pickle", "wb"))
+    pickle.dump(right_num_train, open("./pickle/avg/right_num_train.pickle", "wb"))
 
 def read_test(word_map, relation_map):
     with open('data/RE/test.txt') as f:
@@ -177,8 +184,8 @@ def make_vectors(sentence_indices, data, word_map):
                 word = word_map['BLANK']
                 left_num = left_num_train[i]
                 right_num = right_num_train[i]
-                rel_e1 = set_with_limit(left_num - j, limit)
-                rel_e2 = set_with_limit(right_num - j, limit)
+                rel_e1 = set_with_limit(left_num - j, limit) + limit
+                rel_e2 = set_with_limit(right_num - j, limit) + limit
                 new_sentence[j] = [word,rel_e1,rel_e2]
             sentence = new_sentence
 
@@ -198,13 +205,23 @@ def next_batch(batch_size, bags_list, data, word_map):
         bag_indices = []
         for i in range(last, min(next, len(bags_list))):
             bag_name = bags_list[i]
-            bag_labels.append(relation_map.get(bag_name.split()[2], 0))
+            relation = bag_name.split()[2]
+            if relation in relation_map:
+                relation_id = relation_map[relation]
+            else:
+                relation_id = relation_map['UNK']
+            bag_labels.append(relation_id)
             sentence_indices.append(bags_train[bag_name])
             bag_indices.append(len(bags_train[bag_name]))
         if wrap:
             for i in range(next % len(bags_list)):
                 bag_name = bags_list[i]
-                bag_labels.append(relation_map.get(bag_name.split()[2], 0))
+                relation = bag_name.split()[2]
+                if relation in relation:
+                    relation_id = relation_map[relation]
+                else:
+                    relation_id = relation_map['UNK']
+                bag_labels.append(relation_id)
                 sentence_indices.append(bags_train[bag_name])
                 bag_indices.append(len(bags_train[bag_name]))
 
@@ -224,10 +241,18 @@ def compute_average_bag(bags):
 
 
 def load_data():
+    global train_list, bags_train, left_num_train, right_num_train
     word_matrix, word_map = read_vec()
     read_relation()
     print("=====Starting to read training data=====")
-    read_train(word_map, relation_map)
+    try:
+        train_list = pickle.load(open("pickle/avg/train_list.pickle", "rb"))
+        bags_train = pickle.load(open("pickle/avg/bags_train.pickle", "rb"))
+        left_num_train = pickle.load(open("pickle/avg/left_num_train.pickle", "rb"))
+        right_num_train = pickle.load(open("pickle/avg/right_num_train.pickle", "rb"))
+    except (OSError, IOError) as e:
+        print("Error loading pickle data")
+        read_train(word_map, relation_map)
     print("Size of train_list (MB):", sys.getsizeof(train_list) / 1e6)
     bags_list = list(bags_train.keys())
     random.shuffle(bags_list)
