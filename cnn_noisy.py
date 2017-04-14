@@ -222,12 +222,17 @@ class NeuralRelationExtractor():
             prev += i
         return tf.stack(means)
 
-    def test(self, sess):
-        loss, auc, probabilities, labels = self.test_step(sess)
-        probabilities = np.concatenate(probabilities, axis=0)
-        labels = np.concatenate(labels, axis=0)
-        pickle.dump(probabilities, open("./pickle/pr_curve/noisy_p.pickle", "wb"))
-        pickle.dump(labels, open("./pickle/pr_curve/noisy_label.pickle", "wb"))
+    def test(self, sess=None):
+        if sess != None:
+            loss, auc, probabilities, labels = self.test_step(sess)
+            probabilities = np.concatenate(probabilities, axis=0)
+            labels = np.concatenate(labels, axis=0)
+            # pickle.dump(probabilities, open("./pickle/pr_curve/noisy_p.pickle", "wb"))
+            # pickle.dump(labels, open("./pickle/pr_curve/noisy_label.pickle", "wb"))
+        else:
+            probabilities = pickle.load(open("./pickle2/pr_curve/noisy_p.pickle", "rb"))
+            labels = pickle.load(open("./pickle2/pr_curve/noisy_label.pickle", "rb"))
+
         self.generate_pr(labels, probabilities)
 
     def generate_y_matrix(self, y_test):
@@ -272,4 +277,5 @@ class NeuralRelationExtractor():
 
 model = NeuralRelationExtractor()
 print("=====Starting to train=====")
-model.train()
+# model.train()
+model.test()
