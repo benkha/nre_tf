@@ -58,7 +58,7 @@ class NeuralRelationExtractor():
 
         self.global_step = tf.Variable(0, name='global_step', trainable=False)
 
-        self.optimizer = tf.train.AdamOptimizer(0.1).minimize(self.cost, global_step=self.global_step)
+        self.optimizer = tf.train.AdamOptimizer(0.01).minimize(self.cost, global_step=self.global_step)
 
         tf.summary.scalar("loss", self.cost)
 
