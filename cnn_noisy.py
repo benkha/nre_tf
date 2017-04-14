@@ -42,7 +42,7 @@ class NeuralRelationExtractor():
         self.right_num_test = self.data["right_num_test"]
 
         self.num_positions = 2 * self.data["limit"] + 1
-        self.num_epochs = 1
+        self.num_epochs = 9
         self.max_length = self.data["max_length"]
 
         self.sentences_placeholder = tf.placeholder(tf.int32, [self.batch_size, self.max_length, 3])
@@ -160,10 +160,7 @@ class NeuralRelationExtractor():
             train_writer = tf.summary.FileWriter(tensor_board_dir, sess.graph)
             test_writer = tf.summary.FileWriter(tensor_board_test_dir, sess.graph)
             saver = tf.train.Saver(max_to_keep=None)
-            # latest_ckpt = tf.train.latest_checkpoint(save_path, latest_filename=None)
-            # print(latest_ckpt)
-            # saver.restore(sess, save_path + 'CNN_NOISY_model-57000')
-            all_vars = tf.get_collection('vars')
+            # saver.restore(sess, save_path + 'CNN_NOISY_model-8001')
             print("Total iterations:", self.num_epochs * len(self.train_list) // self.batch_size)
             for step in range(self.num_epochs * len(self.train_list) // self.batch_size):
             # for step in range(100):
@@ -227,8 +224,8 @@ class NeuralRelationExtractor():
             loss, auc, probabilities, labels = self.test_step(sess)
             probabilities = np.concatenate(probabilities, axis=0)
             labels = np.concatenate(labels, axis=0)
-            # pickle.dump(probabilities, open("./pickle/pr_curve/noisy_p.pickle", "wb"))
-            # pickle.dump(labels, open("./pickle/pr_curve/noisy_label.pickle", "wb"))
+            pickle.dump(probabilities, open("./pickle/pr_curve/noisy_p.pickle", "wb"))
+            pickle.dump(labels, open("./pickle/pr_curve/noisy_label.pickle", "wb"))
         else:
             probabilities = pickle.load(open("./pickle2/pr_curve/noisy_p.pickle", "rb"))
             labels = pickle.load(open("./pickle2/pr_curve/noisy_label.pickle", "rb"))
@@ -277,5 +274,5 @@ class NeuralRelationExtractor():
 
 model = NeuralRelationExtractor()
 print("=====Starting to train=====")
-# model.train()
-model.test()
+model.train()
+# model.test()
