@@ -124,14 +124,16 @@ class NeuralRelationExtractor():
 
 
 
-    def test_step(self, sess):
+    def test_step(self, sess, length=None):
         dev_loss = []
         dev_auc = []
         dev_probabilities = []
         dev_labels = []
+        if length is None:
+            length = self.test_length
 
         # create batch
-        test_iter = next_batch(self.batch_size, self.test_list, self.test_labels, self.left_num_test, self.right_num_test, self.word_map, self.test_length, test=True)
+        test_iter = next_batch(self.batch_size, self.test_list, self.test_labels, self.left_num_test, self.right_num_test, self.word_map, length, test=True)
 
         for batch in test_iter:
             sentences, labels = batch
@@ -165,8 +167,7 @@ class NeuralRelationExtractor():
             # saver.restore(sess, save_path + 'CNN_NOISY_model-8001')
             print("Total iterations:", self.num_epochs * len(self.train_list) // self.batch_size)
             # for step in range(self.num_epochs * len(self.train_list) // self.batch_size):
-            for step in range(1000):
-
+            for step in range(100):
                 sentences, sentence_labels = next(self.batch_iter)
                 if step == 0:
                     dev_loss, dev_auc, _, _ = self.test_step(sess)
@@ -182,10 +183,7 @@ class NeuralRelationExtractor():
                     test_writer.add_summary(_summary_for_scalar('loss', dev_loss), global_step=step)
                     test_writer.add_summary(_summary_for_scalar('auc', dev_auc), global_step=step)
                 if step % 1000 == 0:
-                    # print('Saving model')
                     path = saver.save(sess,save_path +'CNN_NOISY_model',global_step=self.global_step)
-                    # tempstr = 'have saved model to '+path
-                    # print(tempstr)
             self.test(sess)
 
 
@@ -223,7 +221,8 @@ class NeuralRelationExtractor():
 
     def test(self, sess=None):
         if sess != None:
-            loss, auc, probabilities, labels = self.test_step(sess)
+            loss, auc, probabilities, labels = self.test_step(sess, len(self.test_list))
+            print(len(self.test_list))
             probabilities = np.concatenate(probabilities, axis=0)
             labels = np.concatenate(labels, axis=0)
             print("Dumping pr curve")
@@ -239,6 +238,8 @@ class NeuralRelationExtractor():
     def generate_y_matrix(self, y_test):
         y_matrix = np.zeros((len(y_test), self.n_r))
         for i in range(len(y_test)):
+            if y_test[i] == self.n_r:
+                y_test[i] = 0
             y_matrix[i][y_test[i]] = 1
         return y_matrix
 
@@ -247,10 +248,12 @@ class NeuralRelationExtractor():
         recall = dict()
         average_precision = dict()
         y_test = self.generate_y_matrix(y_test)
+        y_score[:, 0] = np.zeros(len(y_score))
         for i in range(self.n_r):
             precision[i], recall[i], _ = precision_recall_curve(y_test[:, i],
                                                         y_score[:, i])
             average_precision[i] = average_precision_score(y_test[:, i], y_score[:, i])
+
 
         precision["micro"], recall["micro"], _ = precision_recall_curve(y_test.ravel(),
                                                                         y_score.ravel())
@@ -287,5 +290,5 @@ class NeuralRelationExtractor():
 
 model = NeuralRelationExtractor()
 print("=====Starting to train=====")
-# model.train()
-model.test()
+model.train()
+# model.test()

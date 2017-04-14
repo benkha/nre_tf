@@ -69,7 +69,6 @@ def read_relation():
             relation = relation_line[0]
             relation_id = int(relation_line[1])
             relation_map[relation] = relation_id
-        relation_map['UNK'] = len(relation_map)
     print("Relation total: ", len(relation_map))
 
 def read_train(word_map, relation_map):
@@ -93,7 +92,7 @@ def read_train(word_map, relation_map):
             if relation in relation_map:
                 train_labels.append(relation_map[relation])
             else:
-                train_labels.append(relation_map['UNK'])
+                train_labels.append(relation_map['NA'])
             n = 0
             left_num = 0
             rightnum = 0
@@ -143,7 +142,7 @@ def read_test(word_map, relation_map):
             if relation in relation_map:
                 test_labels.append(relation_map[relation])
             else:
-                test_labels.append(relation_map['UNK'])
+                test_labels.append(relation_map['NA'])
             n = 0
             left_num = 0
             rightnum = 0
