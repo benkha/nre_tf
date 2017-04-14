@@ -1,4 +1,9 @@
 *.tramp_history
 *RE/
 *vec.bin*
+*pickle*
+*__pycache_*
+*tensorboard*
+*pyc*
+*sample_model*
 README.html
