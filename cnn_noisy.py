@@ -60,7 +60,7 @@ class NeuralRelationExtractor():
 
         self.global_step = tf.Variable(0, name='global_step', trainable=False)
 
-        self.optimizer = tf.train.AdamOptimizer(0.01).minimize(self.cost, global_step=self.global_step)
+        self.optimizer = tf.train.AdamOptimizer(0.001).minimize(self.cost, global_step=self.global_step)
 
         tf.summary.scalar("loss", self.cost)
 
@@ -147,11 +147,11 @@ class NeuralRelationExtractor():
         return np.mean(dev_loss), np.mean(dev_auc), dev_probabilities, dev_labels
 
     def train(self):
-        save_path = './sample_model/'
         self.batch_iter = next_batch(self.batch_size, self.train_list, self.train_labels, self.left_num_train, self.right_num_train, self.word_map, len(self.train_list))
         config = tf.ConfigProto()
         config.gpu_options.per_process_gpu_memory_fraction = 0.5
         timestamp = str(int(time.time()))
+        save_path = './sample_model/' + timestamp + '/'
         print("Timestamp", timestamp)
         tensor_board_dir = './tensorboard/' + timestamp + '/train'
         tensor_board_test_dir = './tensorboard/' + timestamp + '/test'
@@ -164,7 +164,7 @@ class NeuralRelationExtractor():
             train_writer = tf.summary.FileWriter(tensor_board_dir, sess.graph)
             test_writer = tf.summary.FileWriter(tensor_board_test_dir, sess.graph)
             saver = tf.train.Saver(max_to_keep=None)
-            saver.restore(sess, save_path + 'CNN_NOISY_model-7001')
+            # saver.restore(sess, save_path + 'CNN_NOISY_model-7001')
             print("Total iterations:", self.num_epochs * len(self.train_list) // self.batch_size)
             for step in range(self.num_epochs * len(self.train_list) // self.batch_size):
             # for step in range(100):
@@ -224,7 +224,6 @@ class NeuralRelationExtractor():
         print("Test length:", len(self.test_list))
         if sess != None:
             loss, auc, probabilities, labels = self.test_step(sess, len(self.test_list))
-            print(len(self.test_list))
             probabilities = np.concatenate(probabilities, axis=0)
             labels = np.concatenate(labels, axis=0)
             print("Dumping pr curve")
