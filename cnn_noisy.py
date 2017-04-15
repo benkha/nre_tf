@@ -44,7 +44,7 @@ class NeuralRelationExtractor():
         self.right_num_test = self.data["right_num_test"]
 
         self.num_positions = 2 * self.data["limit"] + 1
-        self.num_epochs = 10
+        self.num_epochs = 1
         self.max_length = self.data["max_length"]
 
         self.sentences_placeholder = tf.placeholder(tf.int32, [self.batch_size, self.max_length, 3])
@@ -60,7 +60,7 @@ class NeuralRelationExtractor():
 
         self.global_step = tf.Variable(0, name='global_step', trainable=False)
 
-        self.optimizer = tf.train.AdamOptimizer(0.01).minimize(self.cost, global_step=self.global_step)
+        self.optimizer = tf.train.AdamOptimizer(0.1).minimize(self.cost, global_step=self.global_step)
 
         tf.summary.scalar("loss", self.cost)
 
@@ -164,10 +164,10 @@ class NeuralRelationExtractor():
             train_writer = tf.summary.FileWriter(tensor_board_dir, sess.graph)
             test_writer = tf.summary.FileWriter(tensor_board_test_dir, sess.graph)
             saver = tf.train.Saver(max_to_keep=None)
-            saver.restore(sess, save_path + 'CNN_NOISY_model-7001')
+            # saver.restore(sess, save_path + 'CNN_NOISY_model-7001')
             print("Total iterations:", self.num_epochs * len(self.train_list) // self.batch_size)
-            for step in range(self.num_epochs * len(self.train_list) // self.batch_size):
-            # for step in range(100):
+            # for step in range(self.num_epochs * len(self.train_list) // self.batch_size):
+            for step in range(1000):
                 sentences, sentence_labels = next(self.batch_iter)
                 if step == 0:
                     dev_loss, dev_auc, _, _ = self.test_step(sess)
@@ -221,10 +221,10 @@ class NeuralRelationExtractor():
 
     def test(self, sess=None):
         print("===Starting testing===")
-        print("Test length:", len(self.test_list))
         if sess != None:
-            loss, auc, probabilities, labels = self.test_step(sess, len(self.test_list))
-            print('Length of test:', len(self.test_list))
+            print("Test length:", len(self.test_list))
+            # loss, auc, probabilities, labels = self.test_step(sess, (len(self.test_list) // self.batch_size) * self.batch_size)
+            loss, auc, probabilities, labels = self.test_step(sess, 2048 * 3)
             probabilities = np.concatenate(probabilities, axis=0)
             labels = np.concatenate(labels, axis=0)
             print("Dumping pr curve")
@@ -235,15 +235,12 @@ class NeuralRelationExtractor():
             print("Loading pr curve")
             probabilities = pickle.load(open("./pickle2/pr_curve/noisy_p.pickle", "rb"))
             labels = pickle.load(open("./pickle2/pr_curve/noisy_label.pickle", "rb"))
-            print(probabilities.shape)
-            print(labels.shape)
+            print("Test length:", len(labels))
             self.generate_pr(labels, probabilities)
 
     def generate_y_matrix(self, y_test):
         y_matrix = np.zeros((len(y_test), self.n_r))
         for i in range(len(y_test)):
-            if y_test[i] == self.n_r:
-                y_test[i] = 0
             y_matrix[i][y_test[i]] = 1
         return y_matrix
 
@@ -251,12 +248,15 @@ class NeuralRelationExtractor():
         precision = dict()
         recall = dict()
         average_precision = dict()
+        plt.hist(y_test, bins="auto")
+        plt.show()
         y_test = self.generate_y_matrix(y_test)
-        y_score[:, 0] = np.zeros(len(y_score))
-        for i in range(self.n_r):
-            precision[i], recall[i], _ = precision_recall_curve(y_test[:, i],
-                                                        y_score[:, i])
-            average_precision[i] = average_precision_score(y_test[:, i], y_score[:, i])
+        y_score = y_score[:, 1:]
+        y_test = y_test[:, 1:]
+        # for i in range(self.n_r - 1):
+        #     precision[i], recall[i], _ = precision_recall_curve(y_test[:, i],
+        #                                                 y_score[:, i])
+        #     average_precision[i] = average_precision_score(y_test[:, i], y_score[:, i])
 
 
         precision["micro"], recall["micro"], _ = precision_recall_curve(y_test.ravel(),
@@ -268,12 +268,12 @@ class NeuralRelationExtractor():
         plt.clf()
         plt.xlabel('Recall')
         plt.ylabel('Precision')
-        plt.ylim([0.0, 1.05])
-        plt.xlim([0.0, 1.0])
+        plt.ylim([0.3, 1])
+        plt.xlim([0.0, 0.4])
         plt.plot(recall["micro"], precision["micro"], color='gold', lw=lw,
          label='micro-average Precision-recall curve (area = {0:0.2f})'
                ''.format(average_precision["micro"]))
-        # for i, color in zip(range(self.n_r), colors):
+        # for i, color in zip(range(self.n_r - 1), colors):
         #     if not math.isnan(average_precision[i]):
         #         plt.plot(recall[i], precision[i], color=color, lw=lw,
         #                  label='Precision-recall curve of class {0} (area = {1:0.2f})'
@@ -294,5 +294,5 @@ class NeuralRelationExtractor():
 
 model = NeuralRelationExtractor()
 print("=====Starting to train=====")
-# model.train()
-model.test()
+model.train()
+# model.test()
