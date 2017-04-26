@@ -60,7 +60,7 @@ class NeuralRelationExtractor():
 
         self.global_step = tf.Variable(0, name='global_step', trainable=False)
 
-        self.optimizer = tf.train.AdamOptimizer(0.1).minimize(self.cost, global_step=self.global_step)
+        self.optimizer = tf.train.AdamOptimizer(0.001).minimize(self.cost, global_step=self.global_step)
 
         tf.summary.scalar("loss", self.cost)
 
@@ -147,11 +147,11 @@ class NeuralRelationExtractor():
         return np.mean(dev_loss), np.mean(dev_auc), dev_probabilities, dev_labels
 
     def train(self):
-        save_path = './sample_model/'
         self.batch_iter = next_batch(self.batch_size, self.train_list, self.train_labels, self.left_num_train, self.right_num_train, self.word_map, len(self.train_list))
         config = tf.ConfigProto()
         config.gpu_options.per_process_gpu_memory_fraction = 0.9
         timestamp = str(int(time.time()))
+        save_path = './sample_model/' + timestamp + '/'
         print("Timestamp", timestamp)
         tensor_board_dir = './tensorboard/' + timestamp + '/train'
         tensor_board_test_dir = './tensorboard/' + timestamp + '/test'
