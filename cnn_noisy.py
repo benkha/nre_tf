@@ -248,9 +248,14 @@ class NeuralRelationExtractor():
         precision = dict()
         recall = dict()
         average_precision = dict()
-        plt.hist(y_test, bins="auto")
+        plt.hist(y_test)
         plt.show()
+        print(y_test)
         y_test = self.generate_y_matrix(y_test)
+        y_score_max = np.argmax(y_score, axis=1)
+        print(y_score_max)
+        plt.hist(y_score_max)
+        plt.show()
         y_score = y_score[:, 1:]
         y_test = y_test[:, 1:]
         # for i in range(self.n_r - 1):
@@ -268,8 +273,8 @@ class NeuralRelationExtractor():
         plt.clf()
         plt.xlabel('Recall')
         plt.ylabel('Precision')
-        plt.ylim([0.3, 1])
-        plt.xlim([0.0, 0.4])
+        plt.ylim([0.0, 1.05])
+        plt.xlim([0.0, 1.0])
         plt.plot(recall["micro"], precision["micro"], color='gold', lw=lw,
          label='micro-average Precision-recall curve (area = {0:0.2f})'
                ''.format(average_precision["micro"]))
@@ -294,5 +299,5 @@ class NeuralRelationExtractor():
 
 model = NeuralRelationExtractor()
 print("=====Starting to train=====")
-model.train()
-# model.test()
+# model.train()
+model.test()
