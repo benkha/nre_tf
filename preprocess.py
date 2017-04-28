@@ -123,7 +123,7 @@ def read_test(word_map, relation_map):
         count = 0
         for line in f:
             # if count > 100000:
-            #     break
+            #     brreak
             if count % 10000 == 0:
                 print("Count:", count)
             count += 1
@@ -163,7 +163,6 @@ def read_test(word_map, relation_map):
                 else:
                         word = word_map[sentence[i]]
                 output[i] = np.array([word,rel_e1,rel_e2])
-
             test_list.append(output)
 
 def set_with_limit(value, limit):

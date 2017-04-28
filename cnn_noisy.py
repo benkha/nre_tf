@@ -219,12 +219,34 @@ class NeuralRelationExtractor():
             prev += i
         return tf.stack(means)
 
+    def eval_step(self, sess, length=None):
+        dev_loss = []
+        dev_auc = []
+        dev_probabilities = []
+        dev_labels = []
+        if length is None:
+            length = self.test_length
+
+        # create batch
+        test_iter = eval_batch()
+
+        for batch in test_iter:
+            sentences, labels = batch
+            #a_batch = np.ones((len(batch), 1), dtype=np.float32) / len(batch) # average
+            loss, accuracy, _, probability = sess.run([self.cost, self.train_accuracy, self.summary_op, self.probabilities], feed_dict={self.sentences_placeholder: sentences, self.labels_placeholder: labels})
+            dev_loss.append(loss)
+            dev_auc.append(accuracy)
+            dev_probabilities.append(np.max(probability, axis=0))
+            dev_labels.append(labels[0])
+
+        return np.mean(dev_loss), np.mean(dev_auc), dev_probabilities, dev_labels
+
     def test(self, sess=None):
         print("===Starting testing===")
         if sess != None:
             print("Test length:", len(self.test_list))
             # loss, auc, probabilities, labels = self.test_step(sess, (len(self.test_list) // self.batch_size) * self.batch_size)
-            loss, auc, probabilities, labels = self.test_step(sess, 2048 * 3)
+            loss, auc, probabilities, labels = self.eval_step(sess)
             probabilities = np.concatenate(probabilities, axis=0)
             labels = np.concatenate(labels, axis=0)
             print("Dumping pr curve")

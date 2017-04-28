@@ -139,6 +139,8 @@ def read_test(word_map, relation_map):
             tail_s = words[3]
             relation = words[4]
 
+            bags_test.setdefault(head_s + '\t' + tail_s + '\t' + relation, []).append(len(test_list))
+
             if relation in relation_map:
                 test_labels.append(relation_map[relation])
             else:
@@ -175,8 +177,6 @@ def read_test(word_map, relation_map):
     pickle.dump(train_labels, open("./pickle/noisy/test_labels.pickle", "wb"))
     pickle.dump(left_num_train, open("./pickle/noisy/left_num_test.pickle", "wb"))
     pickle.dump(right_num_train, open("./pickle/noisy/right_num_test.pickle", "wb"))
-
-
 
 
 def set_with_limit(value, limit):
@@ -227,6 +227,18 @@ def next_batch(batch_size, data, labels, left_num_list, right_num_list, word_map
         yield vectors, sentence_labels
         last = (next % length)
 
+def eval_batch(test=True):
+    list_bags = list(bags_test.keys())
+    list_bags.sort()
+    for each bag in list_bags:
+        sentence_indices = bags_test[bag]
+        sentence_labels = [eval_labels[i] for i in sentence_indices]
+        vectors = make_vectors(sentence_indices, eval_list, word_map, eval_left, eval_right)
+        yield vectors, sentence_labels
+
+
+
+
 def compute_average_bag(bags):
     total = 0.0
     max_len = 0.0
@@ -238,7 +250,7 @@ def compute_average_bag(bags):
 
 def load_data():
     global train_list, train_labels, left_num_train, right_num_train
-    global test_list, test_labels, left_num_test, right_num_test
+    global test_list, test_labels, left_num_test, right_num_test, eval_list, eval_labels, eval_left, eval_right
     word_matrix, word_map = read_vec()
     read_relation()
     print("=====Starting to read training data=====")
@@ -258,8 +270,9 @@ def load_data():
 
     print("Number of training examples", len(train_list))
     print("Size of train_list (MB):", sys.getsizeof(train_list) / 1e6)
-    train_list, train_labels = sklearn.utils.shuffle(train_list, train_labels)
-    test_list, test_labels = sklearn.utils.shuffle(test_list, test_labels)
+    train_list, train_labels = sklearn.utils.shuffle(train_list, train_labels, left_num_train, right_num_train)
+    eval_list, eval_labels, eval_left, eval_right = test_list, test_labels, left_num_test, right_num_test
+    test_list, test_labels = sklearn.utils.shuffle(test_list, test_labels, left_num_test, right_num_test)
 
     max_length = fix_len
     data = {
